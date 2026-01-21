@@ -76,7 +76,9 @@ This starts:
 - `POST /api/containers/:id/restart` - Restart container
 - `DELETE /api/containers/:id` - Delete container
 - `GET /api/containers/:id/logs` - Get container logs
+- `GET /api/containers/:id/logs/stream` - **Stream logs (SSE)**
 - `GET /api/containers/:id/stats` - Get container stats
+- `GET /api/containers/:id/stats/stream` - **Stream stats (SSE)**
 
 ### Images (protected)
 
@@ -91,6 +93,9 @@ This starts:
 - `GET /api/projects/:id` - Get project
 - `PUT /api/projects/:id` - Update project
 - `DELETE /api/projects/:id` - Delete project
+- `POST /api/projects/:id/deploy` - **Deploy project**
+- `POST /api/projects/:id/stop` - **Stop deployed project**
+- `POST /api/projects/:id/restart` - **Restart deployed project**
 
 ## 🗄️ Database
 

@@ -44,6 +44,7 @@ async function fetchApi<T>(
   }
 }
 
+// Types
 export interface LoginRequest {
   email: string;
   password: string;
@@ -58,6 +59,69 @@ export interface RegisterRequest {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+export interface Container {
+  id: string;
+  names: string[];
+  image: string;
+  state: string;
+  status: string;
+  ports: { private_port: number; public_port?: number; port_type: string }[];
+  created: number;
+}
+
+export interface ContainerStats {
+  cpu_percent: number;
+  memory_usage: number;
+  memory_limit: number;
+  memory_percent: number;
+  network_rx: number;
+  network_tx: number;
+}
+
+export interface Image {
+  id: string;
+  repo_tags: string[];
+  size: number;
+  created: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  container_id?: string;
+  image?: string;
+  status: string;
+  port?: number;
+  env_vars?: Record<string, string>;
+  domains?: string[];
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProject {
+  name: string;
+  description?: string;
+  image?: string;
+  port?: number;
+  env_vars?: Record<string, string>;
+  domains?: string[];
+}
+
+export interface SystemStats {
+  cpu_count: number;
+  memory_total_kb: number;
+  memory_available_kb: number;
+  memory_used_percent: number;
+  disk_total_bytes: number;
+  disk_available_bytes: number;
+  disk_used_percent: number;
+  uptime_seconds: number;
+  load_average: { one: number; five: number; fifteen: number };
 }
 
 export const api = {
@@ -96,6 +160,124 @@ export const api = {
   health: {
     check: async () => {
       return fetchApi<{ status: string; version: string }>("/health");
+    },
+  },
+
+  system: {
+    stats: async () => {
+      return fetchApi<SystemStats>("/system/stats");
+    },
+  },
+
+  containers: {
+    list: async (all = false) => {
+      return fetchApi<Container[]>(`/containers?all=${all}`);
+    },
+
+    create: async (data: { name: string; image: string; env?: string[] }) => {
+      return fetchApi<{ id: string }>("/containers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    start: async (id: string) => {
+      return fetchApi<{ status: string }>(`/containers/${id}/start`, {
+        method: "POST",
+      });
+    },
+
+    stop: async (id: string) => {
+      return fetchApi<{ status: string }>(`/containers/${id}/stop`, {
+        method: "POST",
+      });
+    },
+
+    restart: async (id: string) => {
+      return fetchApi<{ status: string }>(`/containers/${id}/restart`, {
+        method: "POST",
+      });
+    },
+
+    remove: async (id: string) => {
+      return fetchApi<{ status: string }>(`/containers/${id}`, {
+        method: "DELETE",
+      });
+    },
+
+    logs: async (id: string, tail = 100) => {
+      return fetchApi<string[]>(`/containers/${id}/logs?tail=${tail}`);
+    },
+
+    stats: async (id: string) => {
+      return fetchApi<ContainerStats>(`/containers/${id}/stats`);
+    },
+  },
+
+  images: {
+    list: async () => {
+      return fetchApi<Image[]>("/images");
+    },
+
+    pull: async (image: string) => {
+      return fetchApi<{ status: string; image: string }>("/images/pull", {
+        method: "POST",
+        body: JSON.stringify({ image }),
+      });
+    },
+
+    remove: async (id: string) => {
+      return fetchApi<{ status: string }>(`/images/${id}`, {
+        method: "DELETE",
+      });
+    },
+  },
+
+  projects: {
+    list: async () => {
+      return fetchApi<Project[]>("/projects");
+    },
+
+    get: async (id: string) => {
+      return fetchApi<Project>(`/projects/${id}`);
+    },
+
+    create: async (data: CreateProject) => {
+      return fetchApi<Project>("/projects", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    update: async (id: string, data: Partial<CreateProject>) => {
+      return fetchApi<Project>(`/projects/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+
+    remove: async (id: string) => {
+      return fetchApi<{ status: string }>(`/projects/${id}`, {
+        method: "DELETE",
+      });
+    },
+
+    deploy: async (id: string) => {
+      return fetchApi<Project>(`/projects/${id}/deploy`, {
+        method: "POST",
+      });
+    },
+
+    stop: async (id: string) => {
+      return fetchApi<Project>(`/projects/${id}/stop`, {
+        method: "POST",
+      });
+    },
+
+    restart: async (id: string) => {
+      return fetchApi<Project>(`/projects/${id}/restart`, {
+        method: "POST",
+      });
     },
   },
 };

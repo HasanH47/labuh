@@ -1,0 +1,32 @@
+[Unit]
+Description=Labuh - Lightweight PaaS Platform
+Documentation=https://github.com/yourusername/labuh
+After=network.target docker.service containerd.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=labuh
+Group=labuh
+WorkingDirectory=/opt/labuh
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+Environment=RUST_LOG=labuh=info,tower_http=info
+EnvironmentFile=/opt/labuh/.env
+ExecStart=/opt/labuh/labuh
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/labuh
+PrivateTmp=true
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target
