@@ -15,6 +15,7 @@
 		</div>
 		<div class="flex items-center gap-4">
 			<a href="/docs" class="text-sm text-muted-foreground hover:text-foreground">Docs</a>
+			<a href="/about" class="text-sm text-muted-foreground hover:text-foreground">About</a>
 			<a href="/login">
 				<Button variant="ghost">Sign In</Button>
 			</a>

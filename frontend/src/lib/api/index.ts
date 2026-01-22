@@ -3,7 +3,7 @@ import { auth, type User } from "$lib/stores";
 
 const API_URL = browser
   ? import.meta.env.PUBLIC_API_URL || "http://localhost:3000"
-  : "http://localhost:3000";
+  : " ";
 
 interface ApiResponse<T> {
   data?: T;
@@ -153,7 +153,7 @@ export const api = {
     },
 
     me: async () => {
-      return fetchApi<User>("/auth/me");
+      return fetchApi<User>("/me");
     },
   },
 

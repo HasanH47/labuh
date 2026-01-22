@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import * as Card from '$lib/components/ui/card';
-	import { Book, FileText, Server, Code } from '@lucide/svelte';
+	import { Book, FileText, Server, Code, Ship } from '@lucide/svelte';
 
 	const navItems = [
 		{ href: '/docs', label: 'Introduction', icon: Book },
@@ -17,7 +17,9 @@
 		<div class="container mx-auto flex h-14 items-center justify-between px-4">
 			<div class="flex items-center gap-4">
 				<a href="/" class="flex items-center gap-2 font-semibold">
-					<span class="text-xl">⚓</span>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+				<Ship class="h-6 w-6" />
+			</div>
 					<span>Labuh</span>
 				</a>
 				<span class="text-muted-foreground">/</span>
