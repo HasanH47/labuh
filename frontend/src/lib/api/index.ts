@@ -87,6 +87,18 @@ export interface Image {
   created: number;
 }
 
+export interface ImageInspect {
+  id: string;
+  repo_tags: string[];
+  exposed_ports: string[];
+  env_vars: string[];
+  working_dir: string;
+  entrypoint: string[];
+  cmd: string[];
+  created: string;
+  size: number;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -122,6 +134,22 @@ export interface SystemStats {
   disk_used_percent: number;
   uptime_seconds: number;
   load_average: { one: number; five: number; fifteen: number };
+}
+
+export interface Stack {
+  id: string;
+  name: string;
+  user_id: string;
+  compose_content?: string;
+  status: string;
+  container_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateStack {
+  name: string;
+  compose_content: string;
 }
 
 export const api = {
@@ -174,7 +202,13 @@ export const api = {
       return fetchApi<Container[]>(`/containers?all=${all}`);
     },
 
-    create: async (data: { name: string; image: string; env?: string[] }) => {
+    create: async (data: {
+      name: string;
+      image: string;
+      env?: string[];
+      ports?: Record<string, string>;
+      volumes?: Record<string, string>;
+    }) => {
       return fetchApi<{ id: string }>("/containers", {
         method: "POST",
         body: JSON.stringify(data),
@@ -217,6 +251,12 @@ export const api = {
   images: {
     list: async () => {
       return fetchApi<Image[]>("/images");
+    },
+
+    inspect: async (id: string) => {
+      return fetchApi<ImageInspect>(
+        `/images/${encodeURIComponent(id)}/inspect`,
+      );
     },
 
     pull: async (image: string) => {
@@ -277,6 +317,45 @@ export const api = {
     restart: async (id: string) => {
       return fetchApi<Project>(`/projects/${id}/restart`, {
         method: "POST",
+      });
+    },
+  },
+
+  stacks: {
+    list: async () => {
+      return fetchApi<Stack[]>("/stacks");
+    },
+
+    get: async (id: string) => {
+      return fetchApi<Stack>(`/stacks/${id}`);
+    },
+
+    create: async (data: CreateStack) => {
+      return fetchApi<Stack>("/stacks", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    containers: async (id: string) => {
+      return fetchApi<Container[]>(`/stacks/${id}/containers`);
+    },
+
+    start: async (id: string) => {
+      return fetchApi<{ status: string }>(`/stacks/${id}/start`, {
+        method: "POST",
+      });
+    },
+
+    stop: async (id: string) => {
+      return fetchApi<{ status: string }>(`/stacks/${id}/stop`, {
+        method: "POST",
+      });
+    },
+
+    remove: async (id: string) => {
+      return fetchApi<{ status: string }>(`/stacks/${id}`, {
+        method: "DELETE",
       });
     },
   },

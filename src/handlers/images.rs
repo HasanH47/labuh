@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::error::Result;
-use crate::services::container::ImageInfo;
+use crate::services::container::{ImageInfo, ImageInspect};
 use crate::services::ContainerService;
 
 #[derive(Deserialize)]
@@ -20,6 +20,14 @@ async fn list_images(
 ) -> Result<Json<Vec<ImageInfo>>> {
     let images = container_service.list_images().await?;
     Ok(Json(images))
+}
+
+async fn inspect_image(
+    State(container_service): State<Arc<ContainerService>>,
+    Path(id): Path<String>,
+) -> Result<Json<ImageInspect>> {
+    let inspect = container_service.inspect_image(&id).await?;
+    Ok(Json(inspect))
 }
 
 async fn pull_image(
@@ -45,5 +53,6 @@ pub fn image_routes(container_service: Arc<ContainerService>) -> Router {
         .route("/", get(list_images))
         .route("/pull", post(pull_image))
         .route("/{id}", delete(remove_image))
+        .route("/{id}/inspect", get(inspect_image))
         .with_state(container_service)
 }

@@ -47,6 +47,19 @@ pub struct ContainerStats {
     pub network_tx: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageInspect {
+    pub id: String,
+    pub repo_tags: Vec<String>,
+    pub exposed_ports: Vec<String>,
+    pub env_vars: Vec<String>,
+    pub working_dir: String,
+    pub entrypoint: Vec<String>,
+    pub cmd: Vec<String>,
+    pub created: String,
+    pub size: i64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateContainerRequest {
     pub name: String,
@@ -111,11 +124,65 @@ impl ContainerService {
             .collect())
     }
 
-    /// Create a new container
+    /// Create a new container with full configuration
     pub async fn create_container(&self, request: CreateContainerRequest) -> Result<String> {
+        use bollard::models::{HostConfig, PortBinding};
+        use std::collections::HashMap;
+
+        // Build exposed ports and port bindings
+        let mut exposed_ports: HashMap<String, HashMap<(), ()>> = HashMap::new();
+        let mut port_bindings: HashMap<String, Option<Vec<PortBinding>>> = HashMap::new();
+
+        if let Some(ref ports) = request.ports {
+            for (container_port, host_port) in ports {
+                // Format: "80/tcp" or just "80"
+                let port_key = if container_port.contains('/') {
+                    container_port.clone()
+                } else {
+                    format!("{}/tcp", container_port)
+                };
+
+                // Add to exposed ports
+                exposed_ports.insert(port_key.clone(), HashMap::new());
+
+                // Add to port bindings
+                port_bindings.insert(
+                    port_key,
+                    Some(vec![PortBinding {
+                        host_ip: Some("0.0.0.0".to_string()),
+                        host_port: Some(host_port.clone()),
+                    }]),
+                );
+            }
+        }
+
+        // Build volume bindings (host_path:container_path format)
+        let binds: Option<Vec<String>> = request.volumes.map(|vols| {
+            vols.into_iter()
+                .map(|(host, container)| format!("{}:{}", host, container))
+                .collect()
+        });
+
+        // Build host config
+        let host_config = HostConfig {
+            port_bindings: if port_bindings.is_empty() {
+                None
+            } else {
+                Some(port_bindings)
+            },
+            binds,
+            ..Default::default()
+        };
+
         let config = Config {
             image: Some(request.image),
             env: request.env,
+            exposed_ports: if exposed_ports.is_empty() {
+                None
+            } else {
+                Some(exposed_ports)
+            },
+            host_config: Some(host_config),
             ..Default::default()
         };
 
@@ -333,5 +400,44 @@ impl ContainerService {
             .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
 
         Ok(())
+    }
+
+    /// Inspect an image to get its config (exposed ports, env vars, etc.)
+    pub async fn inspect_image(&self, id: &str) -> Result<ImageInspect> {
+        let image = self
+            .docker
+            .inspect_image(id)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        let config = image.config.unwrap_or_default();
+
+        // Extract exposed ports
+        let exposed_ports: Vec<String> = config
+            .exposed_ports
+            .map(|ports| ports.keys().cloned().collect())
+            .unwrap_or_default();
+
+        // Extract environment variables
+        let env_vars: Vec<String> = config.env.unwrap_or_default();
+
+        // Extract working directory
+        let working_dir = config.working_dir.unwrap_or_default();
+
+        // Extract entrypoint and cmd
+        let entrypoint = config.entrypoint.unwrap_or_default();
+        let cmd = config.cmd.unwrap_or_default();
+
+        Ok(ImageInspect {
+            id: image.id.unwrap_or_default(),
+            repo_tags: image.repo_tags.unwrap_or_default(),
+            exposed_ports,
+            env_vars,
+            working_dir,
+            entrypoint,
+            cmd,
+            created: image.created.unwrap_or_default(),
+            size: image.size.unwrap_or(0),
+        })
     }
 }

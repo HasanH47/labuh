@@ -10,6 +10,7 @@
 		Container,
 		Image,
 		FolderKanban,
+		Layers,
 		Settings,
 		LogOut,
 		Sun,
@@ -26,6 +27,7 @@
 		{ href: '/dashboard/containers', label: 'Containers', icon: Container },
 		{ href: '/dashboard/images', label: 'Images', icon: Image },
 		{ href: '/dashboard/projects', label: 'Projects', icon: FolderKanban },
+		{ href: '/dashboard/stacks', label: 'Stacks', icon: Layers },
 		{ href: '/dashboard/logs', label: 'Logs', icon: Terminal },
 		{ href: '/dashboard/settings', label: 'Settings', icon: Settings },
 	];

@@ -27,30 +27,30 @@
 
 ## 🚀 Next Features (Roadmap)
 
-### Phase 6: Environment & Configuration
+### Phase 6: Environment & Configuration ✅
 
-- [ ] **Environment Variable Management**
-  - [ ] Per-container env vars editor
+- [x] **Environment Variable Management**
+  - [x] Per-container env vars editor
   - [ ] Per-project env vars (inherited by containers)
-  - [ ] Secret masking in UI
-  - [ ] Import from .env file
+  - [x] Secret masking in UI
+  - [x] Import from .env file
 
-- [ ] **Port Management**
-  - [ ] Expose ports per container
-  - [ ] Port mapping UI (host:container)
-  - [ ] Auto-detect exposed ports from image
+- [x] **Port Management**
+  - [x] Expose ports per container
+  - [x] Port mapping UI (host:container)
+  - [x] Auto-detect exposed ports from image
 
-### Phase 7: Docker Compose Support
+### Phase 7: Docker Compose Support ✅
 
-- [ ] **Docker Compose Import**
-  - [ ] Paste docker-compose.yml to create stack
-  - [ ] Parse and create multiple containers
-  - [ ] Handle networks (create shared network)
-  - [ ] Handle volumes
-  - [ ] Stack management (start/stop all)
+- [x] **Docker Compose Import**
+  - [x] Paste docker-compose.yml to create stack
+  - [x] Parse and create multiple containers
+  - [x] Handle networks (create shared network)
+  - [x] Handle volumes
+  - [x] Stack management (start/stop all)
 
-- [ ] **Stack View**
-  - [ ] Group containers by stack/compose file
+- [x] **Stack View**
+  - [x] Group containers by stack/compose file
   - [ ] Stack-level logs viewer
   - [ ] Stack health overview
 

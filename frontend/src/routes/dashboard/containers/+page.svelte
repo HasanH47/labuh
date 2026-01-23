@@ -5,14 +5,22 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Container as ContainerIcon, Play, Square, RotateCcw, Trash2, Plus, X } from '@lucide/svelte';
+	import { Textarea } from '$lib/components/ui/textarea';
+	import { Container as ContainerIcon, Play, Square, RotateCcw, Trash2, Plus, X, Eye, EyeOff } from '@lucide/svelte';
 
 	let containers = $state<Container[]>([]);
 	let loading = $state(true);
 	let showCreateDialog = $state(false);
-	let newContainer = $state({ name: '', image: '' });
+	let newContainer = $state({
+		name: '',
+		image: '',
+		envVars: [] as { key: string; value: string; masked: boolean }[],
+		ports: [] as { hostPort: string; containerPort: string }[]
+	});
 	let creating = $state(false);
 	let actionLoading = $state<string | null>(null);
+	let envImportText = $state('');
+	let showEnvImport = $state(false);
 
 	async function loadContainers() {
 		loading = true;
@@ -25,16 +33,78 @@
 
 	onMount(loadContainers);
 
+	function addEnvVar() {
+		newContainer.envVars = [...newContainer.envVars, { key: '', value: '', masked: false }];
+	}
+
+	function removeEnvVar(index: number) {
+		newContainer.envVars = newContainer.envVars.filter((_, i) => i !== index);
+	}
+
+	function addPort() {
+		newContainer.ports = [...newContainer.ports, { hostPort: '', containerPort: '' }];
+	}
+
+	function removePort(index: number) {
+		newContainer.ports = newContainer.ports.filter((_, i) => i !== index);
+	}
+
+	function importEnvFromText() {
+		const lines = envImportText.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+		const newVars = lines.map(line => {
+			const [key, ...valueParts] = line.split('=');
+			return {
+				key: key?.trim() || '',
+				value: valueParts.join('=').trim().replace(/^["']|["']$/g, ''),
+				masked: key?.toLowerCase().includes('secret') || key?.toLowerCase().includes('password') || key?.toLowerCase().includes('key')
+			};
+		}).filter(v => v.key);
+
+		newContainer.envVars = [...newContainer.envVars, ...newVars];
+		envImportText = '';
+		showEnvImport = false;
+	}
+
+	async function loadImagePorts() {
+		if (!newContainer.image) return;
+		const result = await api.images.inspect(newContainer.image);
+		if (result.data?.exposed_ports) {
+			// Auto-add ports from image
+			const newPorts = result.data.exposed_ports.map(port => ({
+				hostPort: '',
+				containerPort: port.replace('/tcp', '').replace('/udp', '')
+			}));
+			newContainer.ports = [...newContainer.ports, ...newPorts];
+		}
+	}
+
 	async function createContainer() {
 		if (!newContainer.name || !newContainer.image) return;
 		creating = true;
+
+		// Build env array (KEY=VALUE format)
+		const env = newContainer.envVars
+			.filter(e => e.key)
+			.map(e => `${e.key}=${e.value}`);
+
+		// Build ports object
+		const ports: Record<string, string> = {};
+		newContainer.ports
+			.filter(p => p.containerPort && p.hostPort)
+			.forEach(p => {
+				ports[p.containerPort] = p.hostPort;
+			});
+
 		const result = await api.containers.create({
 			name: newContainer.name,
 			image: newContainer.image,
+			env: env.length > 0 ? env : undefined,
+			ports: Object.keys(ports).length > 0 ? ports : undefined,
 		});
+
 		if (result.data) {
 			showCreateDialog = false;
-			newContainer = { name: '', image: '' };
+			newContainer = { name: '', image: '', envVars: [], ports: [] };
 			await loadContainers();
 		} else {
 			alert(result.message || 'Failed to create container');
@@ -147,8 +217,8 @@
 
 <!-- Create Dialog -->
 {#if showCreateDialog}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-		<Card.Root class="w-full max-w-md mx-4">
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-8">
+		<Card.Root class="w-full max-w-2xl mx-4">
 			<Card.Header>
 				<div class="flex items-center justify-between">
 					<Card.Title>Create Container</Card.Title>
@@ -157,14 +227,121 @@
 					</Button>
 				</div>
 			</Card.Header>
-			<Card.Content class="space-y-4">
-				<div class="space-y-2">
-					<Label for="name">Container Name</Label>
-					<Input id="name" placeholder="my-container" bind:value={newContainer.name} />
+			<Card.Content class="space-y-6 max-h-[60vh] overflow-y-auto">
+				<!-- Basic Info -->
+				<div class="grid gap-4 md:grid-cols-2">
+					<div class="space-y-2">
+						<Label for="name">Container Name</Label>
+						<Input id="name" placeholder="my-container" bind:value={newContainer.name} />
+					</div>
+					<div class="space-y-2">
+						<Label for="image">Image</Label>
+						<div class="flex gap-2">
+							<Input id="image" placeholder="nginx:latest" bind:value={newContainer.image} />
+							<Button variant="outline" size="sm" onclick={loadImagePorts} disabled={!newContainer.image}>
+								Auto-detect Ports
+							</Button>
+						</div>
+					</div>
 				</div>
+
+				<!-- Environment Variables -->
 				<div class="space-y-2">
-					<Label for="image">Image</Label>
-					<Input id="image" placeholder="nginx:latest" bind:value={newContainer.image} />
+					<div class="flex items-center justify-between">
+						<Label>Environment Variables</Label>
+						<div class="flex gap-2">
+							<Button variant="outline" size="sm" onclick={() => showEnvImport = !showEnvImport}>
+								Import .env
+							</Button>
+							<Button variant="outline" size="sm" onclick={addEnvVar}>
+								<Plus class="h-3 w-3 mr-1" /> Add
+							</Button>
+						</div>
+					</div>
+
+					{#if showEnvImport}
+						<div class="space-y-2 p-3 border rounded-lg bg-muted/50">
+							<Label for="envImport">Paste .env content:</Label>
+							<Textarea
+								id="envImport"
+								placeholder="KEY=value&#10;ANOTHER_KEY=another_value"
+								bind:value={envImportText}
+								rows={4}
+							/>
+							<div class="flex gap-2">
+								<Button size="sm" onclick={importEnvFromText}>Import</Button>
+								<Button variant="outline" size="sm" onclick={() => showEnvImport = false}>Cancel</Button>
+							</div>
+						</div>
+					{/if}
+
+					{#if newContainer.envVars.length > 0}
+						<div class="space-y-2">
+							{#each newContainer.envVars as envVar, index}
+								<div class="flex gap-2 items-center">
+									<Input
+										placeholder="KEY"
+										bind:value={envVar.key}
+										class="w-1/3"
+									/>
+									<div class="relative flex-1">
+										<Input
+											placeholder="value"
+											bind:value={envVar.value}
+											type={envVar.masked ? 'password' : 'text'}
+										/>
+									</div>
+									<Button variant="ghost" size="icon" onclick={() => envVar.masked = !envVar.masked}>
+										{#if envVar.masked}
+											<EyeOff class="h-4 w-4" />
+										{:else}
+											<Eye class="h-4 w-4" />
+										{/if}
+									</Button>
+									<Button variant="ghost" size="icon" onclick={() => removeEnvVar(index)}>
+										<X class="h-4 w-4 text-destructive" />
+									</Button>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="text-sm text-muted-foreground">No environment variables configured.</p>
+					{/if}
+				</div>
+
+				<!-- Port Mappings -->
+				<div class="space-y-2">
+					<div class="flex items-center justify-between">
+						<Label>Port Mappings</Label>
+						<Button variant="outline" size="sm" onclick={addPort}>
+							<Plus class="h-3 w-3 mr-1" /> Add Port
+						</Button>
+					</div>
+
+					{#if newContainer.ports.length > 0}
+						<div class="space-y-2">
+							{#each newContainer.ports as port, index}
+								<div class="flex gap-2 items-center">
+									<Input
+										placeholder="Host Port (8080)"
+										bind:value={port.hostPort}
+										class="w-1/3"
+									/>
+									<span class="text-muted-foreground">:</span>
+									<Input
+										placeholder="Container Port (80)"
+										bind:value={port.containerPort}
+										class="w-1/3"
+									/>
+									<Button variant="ghost" size="icon" onclick={() => removePort(index)}>
+										<X class="h-4 w-4 text-destructive" />
+									</Button>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="text-sm text-muted-foreground">No port mappings configured.</p>
+					{/if}
 				</div>
 			</Card.Content>
 			<Card.Footer class="flex justify-end gap-2">

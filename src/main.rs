@@ -17,10 +17,10 @@ use crate::config::Config;
 use crate::handlers::auth::protected_auth_routes;
 use crate::handlers::{
     auth_routes, container_routes, deploy_routes, health_routes, image_routes, project_routes,
-    streaming_routes, system_routes,
+    stack_routes, streaming_routes, system_routes,
 };
 use crate::middleware::auth_middleware;
-use crate::services::{AuthService, CaddyService, ContainerService, DeployService, ProjectService};
+use crate::services::{AuthService, CaddyService, ContainerService, DeployService, ProjectService, StackService};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -87,8 +87,11 @@ async fn main() -> anyhow::Result<()> {
         .merge(protected_auth_routes())
         .nest("/projects", project_routes(project_service.clone()));
 
-    // Add container and deploy routes if container runtime is available
+    // Add container, stack, and deploy routes if container runtime is available
     if let Some(ref container_svc) = container_service {
+        // Create stack service
+        let stack_service = Arc::new(StackService::new(pool.clone(), container_svc.clone()));
+
         // Create deploy service
         let deploy_service = Arc::new(DeployService::new(
             container_svc.clone(),
@@ -101,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
             .nest("/containers", container_routes(container_svc.clone()))
             .nest("/containers", streaming_routes(container_svc.clone()))
             .nest("/images", image_routes(container_svc.clone()))
+            .nest("/stacks", stack_routes(stack_service))
             .nest("/projects", deploy_routes(deploy_service));
     }
 
