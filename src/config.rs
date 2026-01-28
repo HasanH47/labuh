@@ -8,7 +8,9 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_expiration_hours: u64,
     pub caddy_admin_api: String,
+    #[allow(dead_code)]
     pub caddy_config_path: String,
+    #[allow(dead_code)]
     pub containerd_socket: String,
 }
 

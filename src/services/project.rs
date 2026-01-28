@@ -34,6 +34,7 @@ impl ProjectService {
             .ok_or(AppError::NotFound("Project not found".to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn get_project_by_slug(&self, slug: &str, user_id: &str) -> Result<Project> {
         sqlx::query_as::<_, Project>("SELECT * FROM projects WHERE slug = ? AND user_id = ?")
             .bind(slug)
@@ -194,6 +195,7 @@ impl ProjectService {
         self.get_project(id, user_id).await
     }
 
+    #[allow(dead_code)]
     pub async fn validate_webhook_token(&self, id: &str, token: &str) -> Result<Project> {
         let project = sqlx::query_as::<_, Project>("SELECT * FROM projects WHERE id = ?")
             .bind(id)

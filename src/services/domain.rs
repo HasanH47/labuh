@@ -45,7 +45,7 @@ impl DomainService {
 
         // Create domain record
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
+        let _now = Utc::now().to_rfc3339();
 
         sqlx::query(
             "INSERT INTO domains (id, stack_id, domain, ssl_enabled, verified, created_at) VALUES (?, ?, ?, ?, ?, ?)"

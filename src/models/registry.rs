@@ -8,6 +8,7 @@ pub struct RegistryCredential {
     pub name: String,
     pub registry_url: String,
     pub username: String,
+    #[allow(dead_code)]
     #[serde(skip_serializing)]
     pub password_encrypted: String,
     pub created_at: String,
@@ -46,6 +47,7 @@ impl From<RegistryCredential> for RegistryCredentialResponse {
 }
 
 /// Common registry URLs
+#[allow(dead_code)]
 pub mod registries {
     pub const DOCKER_HUB: &str = "docker.io";
     pub const GHCR: &str = "ghcr.io";

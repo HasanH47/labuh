@@ -6,7 +6,6 @@ use axum::{
 };
 use futures::stream::Stream;
 use std::{convert::Infallible, sync::Arc, time::Duration};
-use tokio_stream::StreamExt;
 
 use crate::error::Result;
 use crate::middleware::auth::CurrentUser;

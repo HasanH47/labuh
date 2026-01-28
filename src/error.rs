@@ -4,12 +4,14 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+    #[allow(dead_code)]
     #[error("Authentication required")]
     Unauthorized,
 
     #[error("Invalid credentials")]
     InvalidCredentials,
 
+    #[allow(dead_code)]
     #[error("Forbidden")]
     Forbidden,
 
@@ -31,6 +33,7 @@ pub enum AppError {
     #[error("Hash error")]
     Hash,
 
+    #[allow(dead_code)]
     #[error("Internal server error: {0}")]
     Internal(String),
 

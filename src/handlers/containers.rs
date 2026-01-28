@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::error::Result;
 use crate::services::container::{
-    ContainerInfo, ContainerStats, CreateContainerRequest, ImageInfo,
+    ContainerInfo, ContainerStats, CreateContainerRequest,
 };
 use crate::services::ContainerService;
 

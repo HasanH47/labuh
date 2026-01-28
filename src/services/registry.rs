@@ -23,6 +23,7 @@ impl RegistryService {
     }
 
     /// Decode password
+    #[allow(dead_code)]
     fn decode_password(encoded: &str) -> Result<String> {
         let bytes = BASE64.decode(encoded)
             .map_err(|_| AppError::Internal("Failed to decode password".to_string()))?;
@@ -103,6 +104,7 @@ impl RegistryService {
     }
 
     /// Get credentials for a specific registry (used during image pull)
+    #[allow(dead_code)]
     pub async fn get_credentials_for_registry(&self, user_id: &str, image: &str) -> Result<Option<(String, String)>> {
         // Extract registry from image name
         let registry_url = Self::extract_registry_from_image(image);
@@ -124,6 +126,7 @@ impl RegistryService {
     }
 
     /// Extract registry URL from image name
+    #[allow(dead_code)]
     fn extract_registry_from_image(image: &str) -> String {
         // Examples:
         // nginx -> docker.io

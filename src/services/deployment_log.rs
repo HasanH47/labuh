@@ -73,6 +73,7 @@ impl DeploymentLogService {
         self.get(id).await
     }
 
+    #[allow(dead_code)]
     pub async fn append_log(&self, id: &str, log_line: &str) -> Result<()> {
         let current = self.get(id).await?;
         let new_logs = match current.logs {

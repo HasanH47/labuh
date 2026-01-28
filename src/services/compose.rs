@@ -10,6 +10,7 @@ use crate::services::container::CreateContainerRequest;
 
 /// Parsed Docker Compose file structure
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ComposeFile {
     pub version: Option<String>,
     pub services: HashMap<String, ComposeService>,
@@ -20,6 +21,7 @@ pub struct ComposeFile {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ComposeService {
     pub image: Option<String>,
     pub build: Option<ComposeBuild>,
@@ -43,6 +45,7 @@ pub struct ComposeService {
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
+#[allow(dead_code)]
 pub enum ComposeBuild {
     Simple(String),
     Extended {
@@ -62,18 +65,21 @@ pub enum ComposeEnvironment {
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
+#[allow(dead_code)]
 pub enum ComposeCommand {
     Simple(String),
     List(Vec<String>),
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct ComposeNetwork {
     pub driver: Option<String>,
     pub external: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct ComposeVolume {
     pub driver: Option<String>,
     pub external: Option<bool>,
@@ -81,6 +87,7 @@ pub struct ComposeVolume {
 
 /// Result of parsing a compose file
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ParsedCompose {
     pub services: Vec<ParsedService>,
     pub networks: Vec<String>,

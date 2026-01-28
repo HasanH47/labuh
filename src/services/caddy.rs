@@ -11,6 +11,7 @@ pub struct CaddyService {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct CaddyRoute {
     pub domain: String,
     pub upstream: String,
@@ -113,6 +114,7 @@ impl CaddyService {
     }
 
     /// Generate Caddyfile content from routes
+    #[allow(dead_code)]
     pub fn generate_caddyfile(
         &self,
         routes: &[CaddyRoute],
@@ -160,6 +162,7 @@ impl CaddyService {
     }
 
     /// Reload Caddy configuration via Admin API
+    #[allow(dead_code)]
     pub async fn reload_config(&self, caddyfile_content: &str) -> Result<()> {
         let url = format!("{}/load", self.admin_api_url);
 

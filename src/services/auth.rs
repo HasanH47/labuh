@@ -10,7 +10,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::{AppError, Result};
-use crate::models::{AuthResponse, CreateUser, LoginRequest, User, UserResponse};
+use crate::models::{AuthResponse, CreateUser, LoginRequest, User};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
