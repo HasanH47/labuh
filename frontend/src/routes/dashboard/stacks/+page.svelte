@@ -40,7 +40,7 @@
 			newStack = { name: '', composeContent: '' };
 			await loadStacks();
 		} else {
-			toast.error(result.error || 'Failed to create stack');
+			toast.error(result.message || result.error || 'Failed to create stack');
 		}
 		creating = false;
 	}
@@ -49,7 +49,7 @@
 		actionLoading = id;
 		const result = await api.stacks.start(id);
 		if (!result.error) toast.success('Stack started');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadStacks();
 		actionLoading = null;
 	}
@@ -58,7 +58,7 @@
 		actionLoading = id;
 		const result = await api.stacks.stop(id);
 		if (!result.error) toast.success('Stack stopped');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadStacks();
 		actionLoading = null;
 	}
@@ -68,7 +68,7 @@
 		actionLoading = id;
 		const result = await api.stacks.remove(id);
 		if (!result.error) toast.success('Stack removed');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadStacks();
 		actionLoading = null;
 	}

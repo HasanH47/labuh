@@ -44,7 +44,7 @@
 			registries = [result.data, ...registries];
 			newRegistry = { name: '', registry_url: '', username: '', password: '' };
 		} else {
-			toast.error(result.error || 'Failed to add registry');
+			toast.error(result.message || result.error || 'Failed to add registry');
 		}
 		addingRegistry = false;
 	}
@@ -56,7 +56,7 @@
 			toast.success('Registry credential removed');
 			registries = registries.filter(r => r.id !== id);
 		} else {
-			toast.error(result.error);
+			toast.error(result.message || result.error);
 		}
 	}
 </script>

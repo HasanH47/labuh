@@ -3,7 +3,7 @@
 	import { toast } from 'svelte-sonner';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { api, type Stack, type Container, type Domain, type DeploymentLog, type StackHealth, type StackLogEntry, type EnvVar } from '$lib/api';
+	import { api, API_URL, type Stack, type Container, type Domain, type DeploymentLog, type StackHealth, type StackLogEntry, type EnvVar } from '$lib/api';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -155,7 +155,7 @@
 		try {
 			const result = await api.stacks.updateCompose(stack.id, editedCompose);
 			if (result.error) {
-				toast.error(result.error);
+				toast.error(result.message || result.error);
 			} else {
 				toast.success('Stack updated and redeployment triggered');
 				showComposeEditor = false;
@@ -247,7 +247,7 @@
 
 	const runningCount = $derived(containers.filter(c => c.state === 'running').length);
 	const stoppedCount = $derived(containers.filter(c => c.state !== 'running').length);
-	const webhookUrl = $derived(stack?.webhook_token ? `${window.location.origin}/api/webhooks/deploy/${stack.id}/${stack.webhook_token}` : '');
+	const webhookUrl = $derived(stack?.webhook_token ? `${API_URL}/api/webhooks/deploy/${stack.id}/${stack.webhook_token}` : '');
 </script>
 
 <div class="space-y-6">
@@ -477,7 +477,7 @@
 									<div class="space-y-1 pt-2 border-t">
 										{#each health.containers as c}
 											<div class="flex items-center justify-between text-xs">
-												<span class="truncate flex-1">{c.container_name}</span>
+												<span class="truncate flex-1">{c.name}</span>
 												<span class="ml-2 {c.state === 'running' ? 'text-green-500' : 'text-red-500'}">{c.state}</span>
 											</div>
 										{/each}

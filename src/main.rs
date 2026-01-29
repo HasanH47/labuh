@@ -16,13 +16,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::config::Config;
 use crate::handlers::auth::protected_auth_routes;
 use crate::handlers::{
-    auth_routes, container_routes, deploy_routes, deployment_log_routes, domain_routes,
+    auth_routes, container_routes, deployment_log_routes, domain_routes,
     environment_routes, health_routes, image_routes,
-    project_routes, registry_routes, stack_routes, streaming_routes, system_routes,
+    registry_routes, stack_routes, system_routes,
 };
 use crate::middleware::auth_middleware;
 use crate::services::{
-    AuthService, CaddyService, ContainerService, DeploymentLogService, DeployService, DomainService, ProjectService,
+    AuthService, CaddyService, ContainerService, DeploymentLogService, DomainService,
     RegistryService, StackService,
 };
 
@@ -74,9 +74,6 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    // Create project service
-    let project_service = Arc::new(ProjectService::new(pool.clone()));
-
     // Create Caddy service
     let caddy_service = Arc::new(CaddyService::new(config.caddy_admin_api.clone()));
 
@@ -119,8 +116,6 @@ async fn main() -> anyhow::Result<()> {
     // Protected routes (require authentication)
     let mut protected_routes = Router::new()
         .merge(protected_auth_routes())
-        .nest("/projects", project_routes(project_service.clone()))
-        // Domain and log routes moved to /stacks, handled inside if container_svc block
         .nest("/registries", registry_routes(registry_service));
 
     // Webhook routes (only available if container service is available)
@@ -134,23 +129,13 @@ async fn main() -> anyhow::Result<()> {
         // Create stack service
         let stack_service = Arc::new(StackService::new(pool.clone(), container_svc.clone(), env_service.clone()));
 
-        // Create deploy service
-        let deploy_service = Arc::new(DeployService::new(
-            container_svc.clone(),
-            project_service.clone(),
-            caddy_service.clone(),
-            std::env::var("BASE_DOMAIN").unwrap_or_else(|_| "localhost".to_string()),
-        ));
-
         protected_routes = protected_routes
             .nest("/containers", container_routes(container_svc.clone()))
-            .nest("/containers", streaming_routes(container_svc.clone()))
             .nest("/images", image_routes(container_svc.clone()))
             .nest("/stacks", stack_routes(stack_service.clone()))
             .nest("/stacks", domain_routes(domain_service))
             .nest("/stacks", deployment_log_routes(deployment_log_service.clone(), stack_service.clone()))
-            .nest("/stacks", environment_routes(env_service, stack_service.clone()))
-            .nest("/projects", deploy_routes(deploy_service));
+            .nest("/stacks", environment_routes(env_service, stack_service.clone()));
 
         // Create webhook state and routes
         let webhook_state = handlers::webhooks::WebhookState {

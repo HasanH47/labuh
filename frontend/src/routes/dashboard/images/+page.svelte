@@ -33,7 +33,7 @@
 			imageUrl = '';
 			await loadImages();
 		} else {
-			toast.error(result.error || 'Failed to pull image');
+			toast.error(result.message || result.error || 'Failed to pull image');
 		}
 		pulling = false;
 	}
@@ -43,7 +43,7 @@
 		actionLoading = id;
 		const result = await api.images.remove(id);
 		if (result.error) {
-			toast.error(result.error || 'Failed to remove image');
+			toast.error(result.message || result.error || 'Failed to remove image');
 		} else {
 			toast.success('Image removed');
 			await loadImages();

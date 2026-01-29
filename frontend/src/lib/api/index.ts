@@ -1,9 +1,9 @@
 import { browser } from "$app/environment";
 import { auth, type User } from "$lib/stores";
 
-const API_URL = browser
+export const API_URL = browser
   ? import.meta.env.PUBLIC_API_URL || "http://localhost:3000"
-  : " ";
+  : "";
 
 interface ApiResponse<T> {
   data?: T;
@@ -35,6 +35,12 @@ async function fetchApi<T>(
     const data = await response.json();
 
     if (!response.ok) {
+      // Auto-logout if user no longer exists (e.g., database was reset)
+      if (response.status === 401 && data.error === "user_not_found") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
       return { error: data.error || "Request failed", message: data.message };
     }
 
@@ -99,24 +105,6 @@ export interface ImageInspect {
   size: number;
 }
 
-// Deprecated: Project types (kept temporarily if needed, but we are migrating to Stacks)
-export interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  container_id?: string;
-  image?: string;
-  status: string;
-  port?: number;
-  env_vars?: Record<string, string>;
-  domains?: string[];
-  user_id: string;
-  webhook_token?: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface DeploymentLog {
   id: string;
   stack_id: string;
@@ -125,15 +113,6 @@ export interface DeploymentLog {
   logs?: string;
   started_at: string;
   finished_at?: string;
-}
-
-export interface CreateProject {
-  name: string;
-  description?: string;
-  image?: string;
-  port?: number;
-  env_vars?: Record<string, string>;
-  domains?: string[];
 }
 
 export interface SystemStats {
@@ -196,7 +175,7 @@ export interface CreateRegistryCredential {
 
 export interface ContainerHealth {
   container_id: string;
-  container_name: string;
+  name: string;
   state: string;
   status: string;
 }

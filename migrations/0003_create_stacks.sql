@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS stacks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     compose_content TEXT,
     status TEXT NOT NULL DEFAULT 'stopped',
+    webhook_token TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

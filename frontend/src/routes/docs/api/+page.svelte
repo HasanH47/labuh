@@ -114,39 +114,39 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>Projects</Card.Title>
+			<Card.Title>Stacks</Card.Title>
 		</Card.Header>
 		<Card.Content class="prose prose-neutral dark:prose-invert max-w-none">
-			<h3>GET /projects</h3>
-			<p>List all projects for the current user.</p>
+			<h3>GET /stacks</h3>
+			<p>List all stacks for the current user.</p>
 
-			<h3>POST /projects</h3>
-			<p>Create a new project.</p>
+			<h3>POST /stacks</h3>
+			<p>Create a new stack from Docker Compose.</p>
 			<pre class="bg-muted p-4 rounded-lg overflow-x-auto"><code>{`{
-  "name": "my-app",
-  "description": "My application",
-  "image": "nginx:latest",
-  "port": 80,
-  "env_vars": { "KEY": "value" }
+  "name": "my-stack",
+  "compose_content": "version: '3.8'\\nservices:\\n  web:\\n    image: nginx:alpine"
 }`}</code></pre>
 
-			<h3>GET /projects/:id</h3>
-			<p>Get project details.</p>
+			<h3>GET /stacks/:id</h3>
+			<p>Get stack details.</p>
 
-			<h3>PUT /projects/:id</h3>
-			<p>Update a project.</p>
+			<h3>DELETE /stacks/:id</h3>
+			<p>Delete a stack and all its containers.</p>
 
-			<h3>DELETE /projects/:id</h3>
-			<p>Delete a project.</p>
+			<h3>POST /stacks/:id/start</h3>
+			<p>Start all containers in a stack.</p>
 
-			<h3>POST /projects/:id/deploy</h3>
-			<p>Deploy a project (pull image, create container, start).</p>
+			<h3>POST /stacks/:id/stop</h3>
+			<p>Stop all containers in a stack.</p>
 
-			<h3>POST /projects/:id/stop</h3>
-			<p>Stop a deployed project.</p>
+			<h3>POST /stacks/:id/redeploy</h3>
+			<p>Redeploy a stack (pull latest images and recreate containers).</p>
 
-			<h3>POST /projects/:id/restart</h3>
-			<p>Restart a deployed project.</p>
+			<h3>PUT /stacks/:id/compose</h3>
+			<p>Update compose content and redeploy.</p>
+
+			<h3>POST /webhooks/deploy/:stack_id/:token</h3>
+			<p>Trigger deployment via webhook (no auth required, token validation only).</p>
 		</Card.Content>
 	</Card.Root>
 

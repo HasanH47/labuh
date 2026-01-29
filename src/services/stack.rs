@@ -180,10 +180,6 @@ impl StackService {
         Ok(())
     }
 
-
-
-// ... inside impl StackService
-
     /// Get a stack by ID (internal use)
     pub async fn get(&self, id: &str) -> Result<Stack> {
         let stack = sqlx::query_as::<_, Stack>(
@@ -284,13 +280,6 @@ impl StackService {
             // 3. Create new container
             self.container_service.create_container(request).await?;
         }
-
-        // Update status to running (assuming start works, though create_container starts it?)
-        // Note: create_container in ContainerService typically calculates config but doesn't auto-start?
-        // Let's check ContainerService.create_container usage pattern.
-        // In create_stack we pull/create, then set to stopped?
-        // Wait, normally create_stack stops it? No, create_stack sets status directly.
-        // Let's ensure we start them.
 
         self.start_stack(id, &stack.user_id).await?;
 

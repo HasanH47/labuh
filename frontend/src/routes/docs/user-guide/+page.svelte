@@ -80,32 +80,30 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>Managing Projects</Card.Title>
+			<Card.Title>Managing Stacks</Card.Title>
 		</Card.Header>
 		<Card.Content class="prose prose-neutral dark:prose-invert max-w-none">
-			<h3>Create a Project</h3>
+			<h3>Create a Stack</h3>
 			<ol>
-				<li>Go to <strong>Dashboard → Projects</strong></li>
-				<li>Click <strong>Create Project</strong></li>
+				<li>Go to <strong>Dashboard → Stacks</strong></li>
+				<li>Click <strong>Import Compose</strong></li>
 				<li>Fill in:
 					<ul>
-						<li><strong>Name</strong> - Project name</li>
-						<li><strong>Description</strong> - Optional</li>
-						<li><strong>Docker Image</strong> - Image to deploy</li>
-						<li><strong>Container Port</strong> - Port the app listens on</li>
+						<li><strong>Stack Name</strong> - Name for your stack</li>
+						<li><strong>docker-compose.yml</strong> - Paste your compose file content</li>
 					</ul>
 				</li>
-				<li>Click <strong>Create Project</strong></li>
+				<li>Click <strong>Create Stack</strong></li>
 			</ol>
 
-			<h3>Deploy a Project</h3>
-			<p>Click the <strong>🚀 Deploy</strong> button on a project card. Labuh will:</p>
-			<ol>
-				<li>Pull the latest image</li>
-				<li>Create a container</li>
-				<li>Start the container</li>
-				<li>Configure routing</li>
-			</ol>
+			<h3>Deploy/Redeploy a Stack</h3>
+			<p>Click the <strong>🔄 Restart</strong> button on a stack to pull latest images and recreate containers.</p>
+
+			<h3>Webhook Deployment</h3>
+			<p>Each stack has a unique webhook URL. Use it in your CI/CD pipeline to trigger automatic deployments.</p>
+
+			<h3>Environment Variables</h3>
+			<p>Add environment variables in the stack detail page. They will override variables defined in docker-compose.yml on next redeploy.</p>
 		</Card.Content>
 	</Card.Root>
 

@@ -25,7 +25,7 @@
 			<ul>
 				<li><strong>Container Management</strong> - Create, start, stop, restart, and remove containers</li>
 				<li><strong>Image Management</strong> - Pull, list, and delete container images</li>
-				<li><strong>Project Deployment</strong> - Deploy applications with one click</li>
+				<li><strong>Stack Deployment</strong> - Deploy multi-container apps with Docker Compose</li>
 				<li><strong>Real-time Monitoring</strong> - View logs, stats, and system metrics</li>
 				<li><strong>Dark Mode</strong> - Beautiful UI with light and dark themes</li>
 			</ul>
@@ -41,7 +41,7 @@
 				</Card.Header>
 				<Card.Content>
 					<p class="text-sm text-muted-foreground">
-						Learn how to use all features of Labuh, from containers to projects.
+						Learn how to use all features of Labuh, from containers to stacks.
 					</p>
 				</Card.Content>
 				<Card.Footer>

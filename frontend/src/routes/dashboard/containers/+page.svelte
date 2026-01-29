@@ -109,7 +109,7 @@
 			newContainer = { name: '', image: '', envVars: [], ports: [] };
 			await loadContainers();
 		} else {
-			toast.error(result.error || 'Failed to create container');
+			toast.error(result.message || result.error || 'Failed to create container');
 		}
 		creating = false;
 	}
@@ -118,7 +118,7 @@
 		actionLoading = id;
 		const result = await api.containers.start(id);
 		if (!result.error) toast.success('Container started');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadContainers();
 		actionLoading = null;
 	}
@@ -127,7 +127,7 @@
 		actionLoading = id;
 		const result = await api.containers.stop(id);
 		if (!result.error) toast.success('Container stopped');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadContainers();
 		actionLoading = null;
 	}
@@ -136,7 +136,7 @@
 		actionLoading = id;
 		const result = await api.containers.restart(id);
 		if (!result.error) toast.success('Container restarted');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadContainers();
 		actionLoading = null;
 	}
@@ -146,7 +146,7 @@
 		actionLoading = id;
 		const result = await api.containers.remove(id);
 		if (!result.error) toast.success('Container removed');
-		else toast.error(result.error);
+		else toast.error(result.message || result.error);
 		await loadContainers();
 		actionLoading = null;
 	}

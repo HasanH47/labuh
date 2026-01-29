@@ -59,9 +59,21 @@ pub async fn auth_middleware(
 
     match auth_service.verify_token(token) {
         Ok(claims) => {
-            let current_user = CurrentUser::from(claims);
-            request.extensions_mut().insert(current_user);
-            Ok(next.run(request).await)
+            // Verify user still exists in database
+            match auth_service.get_user_by_id(&claims.sub).await {
+                Ok(_) => {
+                    let current_user = CurrentUser::from(claims);
+                    request.extensions_mut().insert(current_user);
+                    Ok(next.run(request).await)
+                }
+                Err(_) => Err((
+                    StatusCode::UNAUTHORIZED,
+                    Json(AuthError {
+                        error: "user_not_found".to_string(),
+                        message: "User no longer exists. Please login again.".to_string(),
+                    }),
+                )),
+            }
         }
         Err(_) => Err((
             StatusCode::UNAUTHORIZED,
