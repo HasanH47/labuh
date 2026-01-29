@@ -98,6 +98,49 @@ impl CaddyService {
         // Ensure image exists
         container_service.pull_image(image).await?;
 
+        // Ensure Caddyfile exists on host to avoid Docker creating it as a directory
+        let caddyfile_path = std::env::current_dir().unwrap_or_default().join("Caddyfile");
+        if !caddyfile_path.exists() {
+            tracing::info!("Caddyfile not found. Creating default...");
+            let default_caddyfile = r#"{
+    admin 0.0.0.0:2019
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy labuh:3000
+    }
+
+    # Frontend fallback (Proxies to Labuh host-gateway for now)
+    handle {
+        reverse_proxy labuh:3000
+    }
+}
+"#;
+            std::fs::write(&caddyfile_path, default_caddyfile)
+                .map_err(|e| AppError::Internal(format!("Failed to create default Caddyfile: {}", e)))?;
+        } else if caddyfile_path.is_dir() {
+            tracing::warn!("Caddyfile exists as a directory. Recreating as a file...");
+            std::fs::remove_dir_all(&caddyfile_path)
+                .map_err(|e| AppError::Internal(format!("Failed to remove Caddyfile directory: {}", e)))?;
+            let default_caddyfile = r#"{
+    admin 0.0.0.0:2019
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy labuh:3000
+    }
+
+    handle {
+        reverse_proxy labuh:3000
+    }
+}
+"#;
+            std::fs::write(&caddyfile_path, default_caddyfile)
+                .map_err(|e| AppError::Internal(format!("Failed to create default Caddyfile: {}", e)))?;
+        }
+
         // Setup port bindings
         let mut port_bindings = HashMap::new();
         port_bindings.insert(

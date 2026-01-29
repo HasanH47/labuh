@@ -48,6 +48,30 @@ elif [ -f "./.env.example" ]; then
     echo "⚠️  Please edit /opt/labuh/.env with your configuration"
 fi
 
+# Copy Caddyfile if exists
+if [ -f "./Caddyfile" ]; then
+    echo "Copying Caddyfile..."
+    cp ./Caddyfile "$INSTALL_DIR/Caddyfile"
+elif [ ! -f "$INSTALL_DIR/Caddyfile" ] || [ -d "$INSTALL_DIR/Caddyfile" ]; then
+    echo "Creating default Caddyfile..."
+    rm -rf "$INSTALL_DIR/Caddyfile"
+    cat > "$INSTALL_DIR/Caddyfile" << EOF
+{
+    admin 0.0.0.0:2019
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy labuh:3000
+    }
+
+    handle {
+        reverse_proxy labuh:3000
+    }
+}
+EOF
+fi
+
 # Set permissions
 echo "Setting permissions..."
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"

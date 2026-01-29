@@ -247,6 +247,31 @@ EOF
         chmod 600 "$INSTALL_DIR/.env"
     fi
 
+    # Create Caddyfile if not exists or if it is a directory
+    if [[ -d "$INSTALL_DIR/Caddyfile" ]]; then
+        echo -e "${YELLOW}Warning: Caddyfile is a directory, removing...${NC}"
+        rm -rf "$INSTALL_DIR/Caddyfile"
+    fi
+
+    if [[ ! -f "$INSTALL_DIR/Caddyfile" ]]; then
+        cat > "$INSTALL_DIR/Caddyfile" << EOF
+{
+    admin 0.0.0.0:2019
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy labuh:3000
+    }
+
+    handle {
+        reverse_proxy labuh:3000
+    }
+}
+EOF
+        chown "$LABUH_USER:$LABUH_USER" "$INSTALL_DIR/Caddyfile"
+    fi
+
     # Create systemd service file
     cat > /etc/systemd/system/labuh.service << EOF
 [Unit]
