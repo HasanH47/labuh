@@ -1,9 +1,7 @@
 import { browser } from "$app/environment";
 import { auth, type User } from "$lib/stores";
 
-export const API_URL = browser
-  ? import.meta.env.PUBLIC_API_URL || "http://localhost:3000"
-  : "";
+export const API_URL = browser ? import.meta.env.PUBLIC_API_URL || "" : "";
 
 interface ApiResponse<T> {
   data?: T;
