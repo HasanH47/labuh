@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use axum::{middleware as axum_middleware, Router};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -195,6 +196,19 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api", protected_routes)
         .layer(TraceLayer::new_for_http())
         .layer(cors);
+
+    // Serve frontend static files
+    let frontend_dir = std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "./frontend/build".to_string());
+
+    let app = if std::path::Path::new(&frontend_dir).exists() {
+        tracing::info!("Serving frontend from {}", frontend_dir);
+        let static_service = ServeDir::new(&frontend_dir)
+            .fallback(ServeFile::new(format!("{}/index.html", frontend_dir)));
+        app.fallback_service(static_service)
+    } else {
+        tracing::warn!("Frontend directory {} not found. Dashboard will not be available.", frontend_dir);
+        app
+    };
 
     // Start server
     let addr = config.server_addr();

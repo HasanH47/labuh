@@ -18,10 +18,17 @@ jobs:
   build-backend-x86:
     name: Build Backend - x86_64
     runs-on: ubuntu-latest
+    needs: build-frontend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: labuh-frontend-files
+          path: frontend/build
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -51,6 +58,8 @@ jobs:
           cp target/release/labuh dist/
           cp -r migrations dist/ 2>/dev/null || true
           cp .env.example dist/ 2>/dev/null || true
+          mkdir -p dist/frontend
+          cp -r frontend/build dist/frontend/
           cp -r deploy dist/
           cd dist && tar -czvf ../labuh-linux-x86_64.tar.gz *
 
@@ -63,10 +72,17 @@ jobs:
   build-backend-arm64:
     name: Build Backend - aarch64
     runs-on: ubuntu-latest
+    needs: build-frontend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: labuh-frontend-files
+          path: frontend/build
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -96,6 +112,8 @@ jobs:
           cp target/aarch64-unknown-linux-gnu/release/labuh dist/
           cp -r migrations dist/ 2>/dev/null || true
           cp .env.example dist/ 2>/dev/null || true
+          mkdir -p dist/frontend
+          cp -r frontend/build dist/frontend/
           cp -r deploy dist/
           cd dist && tar -czvf ../labuh-linux-aarch64.tar.gz *
 
@@ -132,16 +150,21 @@ jobs:
 
       - name: Package
         run: |
-          cd frontend
-          # SvelteKit outputs to .svelte-kit/output or build depending on adapter
-          if [ -d "build" ]; then
-            tar -czvf ../labuh-frontend.tar.gz build package.json
-          elif [ -d ".svelte-kit/output" ]; then
-            tar -czvf ../labuh-frontend.tar.gz .svelte-kit/output package.json
-          else
-            # Fallback: package the whole dist
-            tar -czvf ../labuh-frontend.tar.gz . --exclude=node_modules
+          if [ ! -d "frontend/build" ]; then
+            echo "Error: Frontend build directory not found"
+            exit 1
           fi
+
+      - name: Upload for backend jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: labuh-frontend-files
+          path: frontend/build
+
+      - name: Package for release
+        run: |
+          cd frontend
+          tar -czvf ../labuh-frontend.tar.gz build package.json
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

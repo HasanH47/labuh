@@ -95,6 +95,11 @@
   - [x] Trigger: pull latest image & restart container
   - [x] Webhook logs/history
 
+- [x] **GitHub Actions CI/CD**
+  - [x] Backend CI (Format, Clippy, Build, Test)
+  - [x] Frontend CI (Type check, Build)
+  - [x] Automated multi-arch releases (x86_64, aarch64)
+
 - [ ] **GitHub Integration**
   - [ ] GitHub webhook receiver
   - [ ] Trigger on push to branch
