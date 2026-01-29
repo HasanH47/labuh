@@ -102,7 +102,13 @@ impl CaddyService {
         let caddyfile_path = std::env::current_dir()
             .unwrap_or_default()
             .join("Caddyfile");
-        if !caddyfile_path.exists() || (caddyfile_path.is_file() && std::fs::metadata(&caddyfile_path).map(|m| m.len()).unwrap_or(0) == 0) {
+        if !caddyfile_path.exists()
+            || (caddyfile_path.is_file()
+                && std::fs::metadata(&caddyfile_path)
+                    .map(|m| m.len())
+                    .unwrap_or(0)
+                    == 0)
+        {
             tracing::info!("Caddyfile not found. Creating default...");
             let default_caddyfile = r#"{
     admin 0.0.0.0:2019
