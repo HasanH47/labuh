@@ -37,6 +37,16 @@ features:
     icon: �
 ---
 
+## ⚓ Filosofi Labuh
+
+Nama **Labuh** diambil dari kosa kata bahasa Indonesia yang berarti **jatuh**, **turun**, atau yang paling relevan: **Berlabuh**.
+
+Karya kode yang Anda bangun dengan penuh dedikasi membutuhkan tempat yang aman, stabil, dan efisien untuk menetap. Layaknya sebuah kapal yang telah mengarungi kompetisi dan iterasi panjang di samudra pengembangan, Labuh adalah **dermaga akhir** tempat kode Anda bersandar dan mulai melayani dunia.
+
+> "Labuh adalah tempat di mana setiap baris kode yang Anda tulis akhirnya menemukan rumahnya, berlabuh dengan tenang, dan hidup dengan performa maksimal."
+
+---
+
 <style>
 :root {
   --vp-home-hero-name-color: transparent;

@@ -2,6 +2,16 @@
 
 **Labuh** (dari bahasa Melayu/Indonesia: _berlabuh_ = to dock/berth) adalah platform PaaS (Platform as a Service) modern, aman, dan ringan yang dirancang untuk mendeploy, menarik, dan membangun container image di berbagai infrastruktur.
 
+## ⚓ Filosofi Labuh
+
+Nama **Labuh** tidak sekadar dipilih karena singkatannya yang teknis, melainkan sebuah filosofi: **Tempat di mana kode Anda akhirnya berlabuh.**
+
+Bagi seorang pengembang, kode adalah hasil penjelajahan kreatif yang panjang. Setelah melewati badai _debugging_ dan pengujian di samudra _development_, kode tersebut membutuhkan pelabuhan yang tenang untuk bersandar—sebuah tempat yang stabil agar ia bisa mulai melayani penggunanya.
+
+Labuh hadir sebagai **dermaga modern** bagi aplikasi Anda. Kami percaya bahwa mendeploy kode seharusnya semudah melempar jangkar: presisi, kokoh, dan tanpa drama.
+
+---
+
 ## Mengapa Labuh?
 
 Labuh diciptakan untuk menjembatani celah antara Docker Compose manual yang membosankan dan platform PaaS enterprise yang terlalu berat dan kompleks.
