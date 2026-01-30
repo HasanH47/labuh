@@ -31,8 +31,8 @@ graph TD
     REST --> UC
     UC --> DP
     UC --> DM
-    DP <|-- DB
-    DP <|-- RT
+    DP -.-> DB
+    DP -.-> RT
 ```
 
 ### 📂 Directory Structure
