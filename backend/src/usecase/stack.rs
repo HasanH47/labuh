@@ -8,13 +8,15 @@ use crate::domain::compose::{parse_compose, service_to_container_request};
 use crate::domain::models::Stack;
 use crate::domain::runtime::RuntimePort;
 use crate::domain::stack_repository::StackRepository;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::usecase::environment::EnvironmentUsecase;
+use crate::usecase::registry::RegistryUsecase;
 
 pub struct StackUsecase {
     repo: Arc<dyn StackRepository>,
     runtime: Arc<dyn RuntimePort>,
     environment_usecase: Arc<EnvironmentUsecase>,
+    registry_usecase: Arc<RegistryUsecase>,
 }
 
 impl StackUsecase {
@@ -22,12 +24,18 @@ impl StackUsecase {
         repo: Arc<dyn StackRepository>,
         runtime: Arc<dyn RuntimePort>,
         environment_usecase: Arc<EnvironmentUsecase>,
+        registry_usecase: Arc<RegistryUsecase>,
     ) -> Self {
         Self {
             repo,
             runtime,
             environment_usecase,
+            registry_usecase,
         }
+    }
+
+    pub fn runtime(&self) -> Arc<dyn RuntimePort> {
+        self.runtime.clone()
     }
 
     pub async fn list_stacks(&self, user_id: &str) -> Result<Vec<Stack>> {
@@ -92,7 +100,11 @@ impl StackUsecase {
                 config.env = Some(merged_env);
             }
 
-            self.runtime.pull_image(&config.image).await?;
+            let creds = self
+                .registry_usecase
+                .get_credentials_for_image(user_id, &config.image)
+                .await?;
+            self.runtime.pull_image(&config.image, creds).await?;
             self.runtime.create_container(config).await?;
         }
 
@@ -102,7 +114,7 @@ impl StackUsecase {
 
     pub async fn start_stack(&self, id: &str, user_id: &str) -> Result<()> {
         let stack = self.get_stack(id, user_id).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
 
         for container in containers {
             if container.state != "running" {
@@ -116,7 +128,7 @@ impl StackUsecase {
 
     pub async fn stop_stack(&self, id: &str, user_id: &str) -> Result<()> {
         let stack = self.get_stack(id, user_id).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
 
         for container in containers {
             if container.state == "running" {
@@ -162,9 +174,13 @@ impl StackUsecase {
                 config.env = Some(merged_env);
             }
 
-            self.runtime.pull_image(&config.image).await?;
+            let creds = self
+                .registry_usecase
+                .get_credentials_for_image(&stack.user_id, &config.image)
+                .await?;
+            self.runtime.pull_image(&config.image, creds).await?;
 
-            let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+            let containers = self.get_stack_containers(&stack.id).await?;
             let prefix = format!("/{}-{}", stack.name, service.name);
             for c in containers {
                 if c.names.iter().any(|n| n == &prefix) {
@@ -182,7 +198,7 @@ impl StackUsecase {
 
     pub async fn remove_stack(&self, id: &str, user_id: &str) -> Result<()> {
         let stack = self.get_stack(id, user_id).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
 
         for container in containers {
             let _ = self.runtime.stop_container(&container.id).await;
@@ -199,7 +215,7 @@ impl StackUsecase {
         user_id: &str,
     ) -> Result<crate::domain::models::stack::StackHealth> {
         let stack = self.get_stack(id, user_id).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
 
         let total = containers.len();
         let running = containers.iter().filter(|c| c.state == "running").count();
@@ -247,7 +263,7 @@ impl StackUsecase {
         tail: Option<usize>,
     ) -> Result<Vec<crate::domain::models::stack::StackLogEntry>> {
         let stack = self.get_stack(id, user_id).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
 
         let mut all_logs = Vec::new();
         let tail_count = tail.unwrap_or(100);
@@ -348,8 +364,12 @@ impl StackUsecase {
             config.env = Some(merged_env);
         }
 
-        self.runtime.pull_image(&config.image).await?;
-        let containers = self.get_stack_containers(&stack.id, &stack.name).await?;
+        let creds = self
+            .registry_usecase
+            .get_credentials_for_image(user_id, &config.image)
+            .await?;
+        self.runtime.pull_image(&config.image, creds).await?;
+        let containers = self.get_stack_containers(&stack.id).await?;
         let prefix = format!("/{}-{}", stack.name, service.name);
         for c in containers {
             if c.names.iter().any(|n| n == &prefix) {
@@ -365,16 +385,81 @@ impl StackUsecase {
         self.repo.validate_webhook_token(id, token).await
     }
 
-    async fn get_stack_containers(
+    pub async fn get_stack_containers(
         &self,
-        _stack_id: &str,
-        stack_name: &str,
+        stack_id: &str,
     ) -> Result<Vec<crate::domain::runtime::ContainerInfo>> {
         let all = self.runtime.list_containers(true).await?;
-        let prefix = format!("/{}-", stack_name);
         Ok(all
             .into_iter()
-            .filter(|c| c.names.iter().any(|n| n.starts_with(&prefix)))
+            .filter(|c| {
+                c.labels
+                    .get("labuh.stack.id")
+                    .map(|id| id == stack_id)
+                    .unwrap_or(false)
+            })
             .collect())
+    }
+
+    pub async fn verify_container_ownership(
+        &self,
+        container_id: &str,
+        user_id: &str,
+    ) -> Result<crate::domain::runtime::ContainerInfo> {
+        let container = self.runtime.inspect_container(container_id).await?;
+        let stack_id = container
+            .labels
+            .get("labuh.stack.id")
+            .ok_or_else(|| AppError::Forbidden("Container not managed by Labuh".to_string()))?;
+
+        // Verify stack ownership
+        self.repo.find_by_id(stack_id, user_id).await?;
+
+        Ok(container)
+    }
+
+    pub async fn start_container(&self, container_id: &str, user_id: &str) -> Result<()> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.start_container(container_id).await
+    }
+
+    pub async fn stop_container(&self, container_id: &str, user_id: &str) -> Result<()> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.stop_container(container_id).await
+    }
+
+    pub async fn restart_container(&self, container_id: &str, user_id: &str) -> Result<()> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.restart_container(container_id).await
+    }
+
+    pub async fn remove_container(&self, container_id: &str, user_id: &str) -> Result<()> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.remove_container(container_id, true).await
+    }
+
+    pub async fn get_container_logs(
+        &self,
+        container_id: &str,
+        user_id: &str,
+        tail: usize,
+    ) -> Result<Vec<String>> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.get_logs(container_id, tail).await
+    }
+
+    pub async fn get_container_stats(
+        &self,
+        container_id: &str,
+        user_id: &str,
+    ) -> Result<crate::domain::runtime::ContainerStats> {
+        self.verify_container_ownership(container_id, user_id)
+            .await?;
+        self.runtime.get_stats(container_id).await
     }
 }

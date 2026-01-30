@@ -3,6 +3,7 @@
 	import { toast } from 'svelte-sonner';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { api, API_URL, type Stack, type Container, type Domain, type DeploymentLog, type StackHealth, type EnvVar } from '$lib/api';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -231,8 +232,42 @@
 	}
 
 	function copyToClipboard(text: string) {
-		navigator.clipboard.writeText(text);
-		toast.success('Copied to clipboard');
+		if (navigator.clipboard) {
+			navigator.clipboard.writeText(text).then(() => {
+				toast.success('Copied to clipboard');
+			}).catch(() => {
+				fallbackCopyTextToClipboard(text);
+			});
+		} else {
+			fallbackCopyTextToClipboard(text);
+		}
+	}
+
+	function fallbackCopyTextToClipboard(text: string) {
+		const textArea = document.createElement("textarea");
+		textArea.value = text;
+
+		// Avoid scrolling to bottom
+		textArea.style.top = "0";
+		textArea.style.left = "0";
+		textArea.style.position = "fixed";
+
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+
+		try {
+			const successful = document.execCommand('copy');
+			if (successful) {
+				toast.success('Copied to clipboard');
+			} else {
+				toast.error('Failed to copy');
+			}
+		} catch (err) {
+			toast.error('Failed to copy');
+		}
+
+		document.body.removeChild(textArea);
 	}
 
 	function getStatusColor(state: string): string {
@@ -256,7 +291,7 @@
 	const runningCount = $derived(containers.filter(c => c.state === 'running').length);
 	const stoppedCount = $derived(containers.filter(c => c.state !== 'running').length);
 	let selectedWebhookService = $state('');
-	const webhookUrl = $derived(stack?.webhook_token ? `${API_URL}/api/webhooks/deploy/${stack.id}/${stack.webhook_token}` : '');
+	const webhookUrl = $derived(stack?.webhook_token ? `${browser ? window.location.origin : API_URL}/api/webhooks/deploy/${stack.id}/${stack.webhook_token}` : '');
 	const filteredWebhookUrl = $derived(selectedWebhookService ? `${webhookUrl}?service=${selectedWebhookService}` : webhookUrl);
 </script>
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bollard::container::{
     Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
+    RemoveContainerOptions, StartContainerOptions, StatsOptions, StopContainerOptions,
 };
 use bollard::image::CreateImageOptions;
 use bollard::Docker;
@@ -34,13 +34,19 @@ impl DockerRuntimeAdapter {
 
 #[async_trait]
 impl RuntimePort for DockerRuntimeAdapter {
-    async fn pull_image(&self, image: &str) -> Result<()> {
+    async fn pull_image(&self, image: &str, credentials: Option<(String, String)>) -> Result<()> {
         let options = CreateImageOptions {
             from_image: image,
             ..Default::default()
         };
 
-        let mut stream = self.docker.create_image(Some(options), None, None);
+        let auth = credentials.map(|(u, p)| bollard::auth::DockerCredentials {
+            username: Some(u),
+            password: Some(p),
+            ..Default::default()
+        });
+
+        let mut stream = self.docker.create_image(Some(options), None, auth);
 
         while let Some(result) = stream.next().await {
             match result {
@@ -155,6 +161,14 @@ impl RuntimePort for DockerRuntimeAdapter {
         Ok(())
     }
 
+    async fn restart_container(&self, id: &str) -> Result<()> {
+        self.docker
+            .restart_container(id, None)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(())
+    }
+
     async fn remove_container(&self, id: &str, force: bool) -> Result<()> {
         let options = RemoveContainerOptions {
             force,
@@ -187,8 +201,44 @@ impl RuntimePort for DockerRuntimeAdapter {
                 image: c.image.unwrap_or_default(),
                 state: c.state.unwrap_or_default(),
                 status: c.status.unwrap_or_default(),
+                labels: c.labels.unwrap_or_default(),
             })
             .collect())
+    }
+
+    async fn inspect_container(&self, id: &str) -> Result<ContainerInfo> {
+        let container = self
+            .docker
+            .inspect_container(id, None)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(ContainerInfo {
+            id: container.id.unwrap_or_default(),
+            names: container.name.map(|n| vec![n]).unwrap_or_default(),
+            image: container
+                .config
+                .as_ref()
+                .and_then(|c| c.image.clone())
+                .unwrap_or_default(),
+            state: container
+                .state
+                .as_ref()
+                .and_then(|s| s.status.as_ref())
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            status: container
+                .state
+                .as_ref()
+                .and_then(|s| s.status.as_ref())
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            labels: container
+                .config
+                .as_ref()
+                .and_then(|c| c.labels.clone())
+                .unwrap_or_default(),
+        })
     }
 
     async fn get_logs(&self, id: &str, tail: usize) -> Result<Vec<String>> {
@@ -228,5 +278,58 @@ impl RuntimePort for DockerRuntimeAdapter {
         }
 
         Ok(result)
+    }
+
+    async fn get_stats(&self, id: &str) -> Result<crate::domain::runtime::ContainerStats> {
+        let options = StatsOptions {
+            stream: false,
+            one_shot: true,
+        };
+
+        let mut stats_stream = self.docker.stats(id, Some(options));
+
+        if let Some(stats_result) = stats_stream.next().await {
+            let stats = stats_result.map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+            // Calculate CPU percentage
+            let cpu_delta = stats.cpu_stats.cpu_usage.total_usage as f64
+                - stats.precpu_stats.cpu_usage.total_usage as f64;
+            let system_delta = stats.cpu_stats.system_cpu_usage.unwrap_or(0) as f64
+                - stats.precpu_stats.system_cpu_usage.unwrap_or(0) as f64;
+            let cpu_percent = if system_delta > 0.0 && cpu_delta > 0.0 {
+                let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
+                (cpu_delta / system_delta) * num_cpus * 100.0
+            } else {
+                0.0
+            };
+
+            // Memory stats
+            let memory_usage = stats.memory_stats.usage.unwrap_or(0);
+            let memory_limit = stats.memory_stats.limit.unwrap_or(1);
+            let memory_percent = (memory_usage as f64 / memory_limit as f64) * 100.0;
+
+            // Network stats
+            let (network_rx, network_tx) = stats
+                .networks
+                .map(|nets| {
+                    nets.values().fold((0u64, 0u64), |(rx, tx), net| {
+                        (rx + net.rx_bytes, tx + net.tx_bytes)
+                    })
+                })
+                .unwrap_or((0, 0));
+
+            return Ok(crate::domain::runtime::ContainerStats {
+                cpu_percent,
+                memory_usage,
+                memory_limit,
+                memory_percent,
+                network_rx,
+                network_tx,
+            });
+        }
+
+        Err(AppError::ContainerRuntime(
+            "Failed to get stats".to_string(),
+        ))
     }
 }

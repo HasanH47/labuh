@@ -44,9 +44,9 @@ async fn get_stack_containers(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<crate::domain::runtime::ContainerInfo>>> {
-    let _stack: crate::domain::models::Stack = usecase.get_stack(&id, &current_user.id).await?;
-    // For now, placeholder as we need a public method in usecase to get containers
-    Ok(Json(vec![]))
+    let stack: crate::domain::models::Stack = usecase.get_stack(&id, &current_user.id).await?;
+    let containers = usecase.get_stack_containers(&stack.id).await?;
+    Ok(Json(containers))
 }
 
 async fn start_stack(

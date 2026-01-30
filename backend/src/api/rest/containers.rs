@@ -1,14 +1,15 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     routing::{delete, get, post},
     Json, Router,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::api::middleware::auth::CurrentUser;
+use crate::domain::runtime::{ContainerInfo, ContainerStats};
 use crate::error::Result;
-use crate::services::container::{ContainerInfo, ContainerStats, CreateContainerRequest};
-use crate::services::ContainerService;
+use crate::usecase::stack::StackUsecase;
 
 #[derive(Deserialize)]
 pub struct ListContainersQuery {
@@ -27,81 +28,93 @@ fn default_tail() -> usize {
 }
 
 async fn list_containers(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Query(query): Query<ListContainersQuery>,
 ) -> Result<Json<Vec<ContainerInfo>>> {
-    let containers = container_service.list_containers(query.all).await?;
-    Ok(Json(containers))
+    let stacks = stack_usecase.list_stacks(&user.id).await?;
+    let stack_ids: std::collections::HashSet<String> = stacks.into_iter().map(|s| s.id).collect();
+
+    let all_containers = stack_usecase.runtime().list_containers(query.all).await?;
+    let filtered: Vec<ContainerInfo> = all_containers
+        .into_iter()
+        .filter(|c| {
+            c.labels
+                .get("labuh.stack.id")
+                .map(|id| stack_ids.contains(id))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    Ok(Json(filtered))
 }
 
-async fn create_container(
-    State(container_service): State<Arc<ContainerService>>,
-    Json(request): Json<CreateContainerRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let id = container_service.create_container(request).await?;
-    Ok(Json(serde_json::json!({ "id": id })))
-}
-
+// Handlers for specific container actions that check ownership
 async fn start_container(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    container_service.start_container(&id).await?;
+    stack_usecase.start_container(&id, &user.id).await?;
     Ok(Json(serde_json::json!({ "status": "started" })))
 }
 
 async fn stop_container(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    container_service.stop_container(&id).await?;
+    stack_usecase.stop_container(&id, &user.id).await?;
     Ok(Json(serde_json::json!({ "status": "stopped" })))
 }
 
 async fn restart_container(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    container_service.restart_container(&id).await?;
+    stack_usecase.restart_container(&id, &user.id).await?;
     Ok(Json(serde_json::json!({ "status": "restarted" })))
 }
 
 async fn remove_container(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    container_service.remove_container(&id, false).await?;
+    stack_usecase.remove_container(&id, &user.id).await?;
     Ok(Json(serde_json::json!({ "status": "removed" })))
 }
 
 async fn get_container_logs(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
     Query(query): Query<LogsQuery>,
 ) -> Result<Json<Vec<String>>> {
-    let logs = container_service
-        .get_container_logs(&id, query.tail)
+    let logs = stack_usecase
+        .get_container_logs(&id, &user.id, query.tail)
         .await?;
     Ok(Json(logs))
 }
 
 async fn get_container_stats(
-    State(container_service): State<Arc<ContainerService>>,
+    State(stack_usecase): State<Arc<StackUsecase>>,
+    Extension(user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<ContainerStats>> {
-    let stats = container_service.get_container_stats(&id).await?;
+    let stats = stack_usecase.get_container_stats(&id, &user.id).await?;
     Ok(Json(stats))
 }
 
-pub fn container_routes(container_service: Arc<ContainerService>) -> Router {
+pub fn container_routes(stack_usecase: Arc<StackUsecase>) -> Router {
     Router::new()
         .route("/", get(list_containers))
-        .route("/", post(create_container))
         .route("/{id}/start", post(start_container))
         .route("/{id}/stop", post(stop_container))
         .route("/{id}/restart", post(restart_container))
         .route("/{id}", delete(remove_container))
         .route("/{id}/logs", get(get_container_logs))
         .route("/{id}/stats", get(get_container_stats))
-        .with_state(container_service)
+        .with_state(stack_usecase)
 }

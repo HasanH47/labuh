@@ -1,6 +1,6 @@
 use bollard::container::{
     Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, StatsOptions, StopContainerOptions,
+    RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
 };
 use bollard::image::{CreateImageOptions, ListImagesOptions, RemoveImageOptions};
 use bollard::Docker;
@@ -36,16 +36,6 @@ pub struct ImageInfo {
     pub repo_tags: Vec<String>,
     pub size: i64,
     pub created: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ContainerStats {
-    pub cpu_percent: f64,
-    pub memory_usage: u64,
-    pub memory_limit: u64,
-    pub memory_percent: f64,
-    pub network_rx: u64,
-    pub network_tx: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -262,15 +252,6 @@ impl ContainerService {
         Ok(())
     }
 
-    /// Restart a container
-    pub async fn restart_container(&self, id: &str) -> Result<()> {
-        self.docker
-            .restart_container(id, None)
-            .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
-        Ok(())
-    }
-
     /// Remove a container
     pub async fn remove_container(&self, id: &str, force: bool) -> Result<()> {
         let options = RemoveContainerOptions {
@@ -322,60 +303,6 @@ impl ContainerService {
         }
 
         Ok(result)
-    }
-
-    /// Get container stats (one-shot)
-    pub async fn get_container_stats(&self, id: &str) -> Result<ContainerStats> {
-        let options = StatsOptions {
-            stream: false,
-            one_shot: true,
-        };
-
-        let mut stats_stream = self.docker.stats(id, Some(options));
-
-        if let Some(stats_result) = stats_stream.next().await {
-            let stats = stats_result.map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
-
-            // Calculate CPU percentage
-            let cpu_delta = stats.cpu_stats.cpu_usage.total_usage as f64
-                - stats.precpu_stats.cpu_usage.total_usage as f64;
-            let system_delta = stats.cpu_stats.system_cpu_usage.unwrap_or(0) as f64
-                - stats.precpu_stats.system_cpu_usage.unwrap_or(0) as f64;
-            let cpu_percent = if system_delta > 0.0 && cpu_delta > 0.0 {
-                let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
-                (cpu_delta / system_delta) * num_cpus * 100.0
-            } else {
-                0.0
-            };
-
-            // Memory stats
-            let memory_usage = stats.memory_stats.usage.unwrap_or(0);
-            let memory_limit = stats.memory_stats.limit.unwrap_or(1);
-            let memory_percent = (memory_usage as f64 / memory_limit as f64) * 100.0;
-
-            // Network stats
-            let (network_rx, network_tx) = stats
-                .networks
-                .map(|nets| {
-                    nets.values().fold((0u64, 0u64), |(rx, tx), net| {
-                        (rx + net.rx_bytes, tx + net.tx_bytes)
-                    })
-                })
-                .unwrap_or((0, 0));
-
-            return Ok(ContainerStats {
-                cpu_percent,
-                memory_usage,
-                memory_limit,
-                memory_percent,
-                network_rx,
-                network_tx,
-            });
-        }
-
-        Err(AppError::ContainerRuntime(
-            "Failed to get stats".to_string(),
-        ))
     }
 
     /// List all images

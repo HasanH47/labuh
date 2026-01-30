@@ -12,8 +12,8 @@ pub enum AppError {
     InvalidCredentials,
 
     #[allow(dead_code)]
-    #[error("Forbidden")]
-    Forbidden,
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
 
     #[error("Not found: {0}")]
     NotFound(String),
@@ -65,7 +65,7 @@ impl IntoResponse for AppError {
                 "invalid_credentials",
                 self.to_string(),
             ),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone()),
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, "validation", msg.clone()),

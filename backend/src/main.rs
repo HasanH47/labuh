@@ -164,6 +164,7 @@ async fn main() -> anyhow::Result<()> {
             stack_repo.clone(),
             runtime_adapter.clone(),
             env_usecase.clone(),
+            registry_usecase.clone(),
         ));
 
         // Create stack service (Legacy)
@@ -188,9 +189,12 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(crate::services::DeploymentLogService::new(pool.clone()));
 
         protected_routes = protected_routes
-            .nest("/registries", registry_routes(registry_usecase))
-            .nest("/containers", container_routes(container_svc.clone()))
-            .nest("/images", image_routes(container_svc.clone()))
+            .nest("/registries", registry_routes(registry_usecase.clone()))
+            .nest("/containers", container_routes(stack_usecase.clone()))
+            .nest(
+                "/images",
+                image_routes(container_svc.clone(), registry_usecase.clone()),
+            )
             .nest("/stacks", stack_routes(stack_usecase.clone()))
             .nest("/stacks", domain_routes(domain_service))
             .nest(
