@@ -1,146 +1,57 @@
-# Labuh - Lightweight PaaS Platform
+# Labuh ⚓
 
-> **Labuh** (dari bahasa Melayu/Indonesia: berlabuh = to dock/berth) adalah platform PaaS sederhana dan ringan untuk deploy, pull, dan build container images.
+> **Labuh** (dari bahasa Melayu/Indonesia: _berlabuh_) — Lightweight and professional PaaS for modern servers and edge devices.
 
-## 🎯 Features
+Labuh is a simple yet powerful Platform-as-a-Service (PaaS) designed to deploy, manage, and scale containerized applications with ease. Built with Rust for maximum performance and minimum memory footprint.
 
-- **Authentication**: JWT-based auth with Argon2 password hashing
-- **Container Management**: List, create, start/stop/restart, remove containers
-- **Image Management**: Pull, list, delete images
-- **Projects**: CRUD operations for application projects
-- **System Monitoring**: CPU, memory, disk, and uptime stats
-- **Reverse Proxy**: Caddy with auto SSL and dynamic routing
-- **Modern UI**: SvelteKit + shadcn-svelte with dark mode
+## 📖 Documentation & Landing Page
 
-## 🛠️ Tech Stack
+For detailed guides, installation instructions, and architecture overview, please visit our official website:
 
-### Backend
+👉 **[https://hasanh47.github.io/labuh/](https://hasanh47.github.io/labuh/)** (Or your GitHub Pages URL)
 
-- **Rust** with Axum (async web framework)
-- **SQLite** via SQLx (async, compile-time checked queries)
-- **Docker API** via bollard
+## ✨ Highlights
 
-### Frontend
+- **Universal Multi-Arch**: Runs seamlessly on x86_64 servers and ARM64 edge devices (like STBs).
+- **Single Binary API**: All-in-one backend that serves both the API and the Dashboard.
+- **Docker Compose Native**: Deploy production-ready stacks using standard YAML files.
+- **Zero-Config SSL**: Automatic HTTPS via integrated Caddy server.
+- **Modern Dashboard**: Clean and reactive UI built with Svelte 5.
+- **CI/CD Automation**: Version-controlled deployments via secure webhooks.
 
-- **SvelteKit** with TypeScript
-- **shadcn-svelte** for UI components
-- **TailwindCSS v4**
+## 📂 Project Structure
+
+```text
+.
+├── backend/            # Rust API & SQLite Migrations
+├── frontend/           # SvelteKit Dashboard (SPA)
+├── website/            # VitePress Documentation & Landing Page
+├── deploy/             # Installation & systemd scripts
+├── Cargo.toml          # Root Workspace
+└── docker-compose.yml  # Local development setup
+```
 
 ## 🚀 Quick Start
 
-### Development
+To get started immediately on your Linux server, run our auto-installer:
 
 ```bash
-# Backend
-cd labuh
-cp .env.example .env
-cargo run
-
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
+curl -fsSL https://raw.githubusercontent.com/HasanH47/labuh/main/deploy/quick-install.sh | sudo bash
 ```
 
-### Production (Docker Compose)
+For manual setup and development instructions, refer to the [Installation Guide](https://hasanh47.github.io/labuh/guide/installation.html).
 
-```bash
-docker-compose up -d
-```
+## 🛠️ Tech Stack
 
-This starts:
+- **Backend**: Rust (Axum, SQLx, Bollard)
+- **Frontend**: Svelte 5, TailwindCSS v4, shadcn-svelte
+- **Proxy**: Caddy (Automatic SSL)
+- **Database**: SQLite
 
-- **Labuh backend** on port 3000
-- **Caddy reverse proxy** on ports 80/443
-- **Frontend** on port 5173
+## 📝 License
 
-## 📋 API Endpoints
+Distributed under the MIT License. See `LICENSE` for more information.
 
-### Public
+---
 
-- `GET /api/health` - Health check
-- `GET /api/system/stats` - System statistics
-
-### Authentication
-
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login, returns JWT
-- `GET /api/auth/me` - Get current user (protected)
-
-### Containers (protected)
-
-- `GET /api/containers` - List containers
-- `POST /api/containers` - Create container
-- `POST /api/containers/:id/start` - Start container
-- `POST /api/containers/:id/stop` - Stop container
-- `POST /api/containers/:id/restart` - Restart container
-- `DELETE /api/containers/:id` - Delete container
-- `GET /api/containers/:id/logs` - Get container logs
-- `GET /api/containers/:id/logs/stream` - **Stream logs (SSE)**
-- `GET /api/containers/:id/stats` - Get container stats
-- `GET /api/containers/:id/stats/stream` - **Stream stats (SSE)**
-
-### Images (protected)
-
-- `GET /api/images` - List images
-- `POST /api/images/pull` - Pull image
-- `DELETE /api/images/:id` - Delete image
-
-### Projects (protected)
-
-- `GET /api/projects` - List projects
-- `POST /api/projects` - Create project
-- `GET /api/projects/:id` - Get project
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
-- `POST /api/projects/:id/deploy` - **Deploy project**
-- `POST /api/projects/:id/stop` - **Stop deployed project**
-- `POST /api/projects/:id/restart` - **Restart deployed project**
-
-## 🗄️ Database
-
-SQLite with migrations for:
-
-- Users
-- Projects
-- Deployments
-- Activity logs
-
-## 📁 Project Structure
-
-```
-labuh/
-├── src/                    # Rust backend
-│   ├── main.rs
-│   ├── config.rs
-│   ├── db/                 # Database
-│   ├── models/             # Data models
-│   ├── handlers/           # HTTP handlers
-│   ├── services/           # Business logic
-│   └── middleware/         # Auth middleware
-├── migrations/             # SQLite migrations
-├── frontend/               # SvelteKit frontend
-│   ├── src/
-│   │   ├── routes/         # Pages
-│   │   └── lib/            # Components, stores, API
-│   └── package.json
-├── Cargo.toml
-├── Dockerfile
-├── docker-compose.yml
-└── Caddyfile
-```
-
-## 📝 Environment Variables
-
-```env
-HOST=0.0.0.0
-PORT=3000
-DATABASE_URL=sqlite:./labuh.db?mode=rwc
-JWT_SECRET=your-secret-key
-JWT_EXPIRATION_HOURS=24
-CADDY_ADMIN_API=http://localhost:2019
-```
-
-## 📚 License
-
-MIT
+Built with ❤️ by the Labuh Team.
