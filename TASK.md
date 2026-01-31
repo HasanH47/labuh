@@ -127,8 +127,6 @@
   - [x] Invite users to team
   - [x] Project ownership transfer
 
-### Phase 13: Advanced Features
-
 ### Phase 13: Advanced Features ✅
 
 - [x] **Dynamic Templates**
@@ -142,12 +140,17 @@
   - [x] Portable backup files
   - [x] One-click restore to any team
 
-- [/] **Git Integration**
+- [x] **Git Integration**
   - [x] Clone and deploy from public Git repositories
   - [x] Support for custom branches
   - [x] Git sync & redeploy functionality
-  - [ ] Build from Dockerfile (coming soon)
-  - [ ] Build logs streaming
+  - [x] Build from Dockerfile
+  - [x] Build logs streaming
+
+- [x] **Terminal & Logs**
+  - [x] Interactive Terminal Exec (xterm.js + WebSockets)
+  - [x] Real-time build log viewer (SSE)
+  - [x] Individual service build support (Hammer icon)
 
 ### Phase 14: Maintenance & Code Cleanup ✅
 

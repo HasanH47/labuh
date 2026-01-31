@@ -44,14 +44,29 @@ pub async fn auth_middleware(
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok());
 
-    let token = match auth_header {
-        Some(header) if header.starts_with("Bearer ") => &header[7..],
+    let token_from_header = auth_header.and_then(|h| {
+        if h.starts_with("Bearer ") {
+            Some(&h[7..])
+        } else {
+            None
+        }
+    });
+
+    let token_from_query = request.uri().query().and_then(|q| {
+        q.split('&')
+            .find(|pair| pair.starts_with("token="))
+            .map(|pair| &pair[6..])
+    });
+
+    let token = match (token_from_header, token_from_query) {
+        (Some(t), _) => t,
+        (None, Some(t)) => t,
         _ => {
             return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(AuthError {
                     error: "unauthorized".to_string(),
-                    message: "Missing or invalid authorization header".to_string(),
+                    message: "Missing or invalid authorization".to_string(),
                 }),
             ));
         }

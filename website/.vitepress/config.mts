@@ -23,19 +23,26 @@ export default withMermaid(
           ],
         },
         {
-          text: "Deployment",
+          text: "Core Features",
           items: [
             { text: "Docker Stacks", link: "/guide/stacks" },
+            { text: "App Templates", link: "/guide/templates" },
+            { text: "Containers & Images", link: "/guide/containers-images" },
+            { text: "Webhooks (CI/CD)", link: "/guide/webhooks" },
+          ],
+        },
+        {
+          text: "Management",
+          items: [
+            { text: "Teams & Access", link: "/guide/teams" },
             { text: "Domains & SSL", link: "/guide/domains" },
-            { text: "Webhooks", link: "/guide/webhooks" },
+            { text: "Private Registries", link: "/guide/registries" },
+            { text: "Resource Monitoring", link: "/guide/resources" },
           ],
         },
         {
           text: "Hardware",
-          items: [
-            { text: "Optimization & Edge", link: "/guide/optimization" },
-            { text: "Private Registries", link: "/guide/registries" },
-          ],
+          items: [{ text: "Optimization & Edge", link: "/guide/optimization" }],
         },
       ],
       socialLinks: [

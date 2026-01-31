@@ -98,8 +98,8 @@ services:
           </div>
         {/if}
       </div>
-      <div class="text-sm text-muted-foreground">
-        <p><strong>Note:</strong> Only images are supported. Build contexts are not available.</p>
+      <div class="text-sm text-muted-foreground border-l-2 border-blue-500 pl-3 py-1 bg-blue-500/5">
+        <p><strong>Pro Tip:</strong> Dockerfile builds are supported! If your compose file uses <code>build:</code>, Labuh will handle it automatically.</p>
       </div>
     </Card.Content>
     <Card.Footer class="flex justify-end gap-2">

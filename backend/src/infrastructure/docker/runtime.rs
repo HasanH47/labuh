@@ -334,4 +334,96 @@ impl RuntimePort for DockerRuntimeAdapter {
             "Failed to get stats".to_string(),
         ))
     }
+
+    async fn build_image(
+        &self,
+        image_name: &str,
+        context_path: &str,
+        dockerfile_path: &str,
+    ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<String>>> {
+        use bollard::image::BuildImageOptions;
+        use tokio::sync::mpsc;
+
+        let options = BuildImageOptions {
+            t: image_name.to_string(),
+            dockerfile: dockerfile_path.to_string(),
+            rm: true,
+            ..Default::default()
+        };
+
+        // Create tarball from context_path
+        let mut tar = tar::Builder::new(Vec::new());
+        tar.append_dir_all(".", context_path).map_err(|e| {
+            AppError::Internal(format!("Failed to create build context tar: {}", e))
+        })?;
+        let tar_data = tar.into_inner().map_err(|e| {
+            AppError::Internal(format!("Failed to finalize build context tar: {}", e))
+        })?;
+
+        let (tx, rx) = mpsc::channel(100);
+        let docker = self.docker.clone();
+        let tar_data_stream = tar_data.clone();
+
+        tokio::spawn(async move {
+            let mut stream = docker.build_image(options, None, Some(tar_data_stream.into()));
+            while let Some(res) = stream.next().await {
+                match res {
+                    Ok(inter) => {
+                        if let Some(stream_msg) = inter.stream {
+                            let _ = tx.send(Ok(stream_msg)).await;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(AppError::ContainerRuntime(e.to_string()))).await;
+                        break;
+                    }
+                }
+            }
+        });
+
+        Ok(tokio_stream::wrappers::ReceiverStream::new(rx))
+    }
+
+    async fn exec_command(
+        &self,
+        id: &str,
+        cmd: Vec<String>,
+    ) -> Result<bollard::exec::CreateExecResults> {
+        use bollard::exec::CreateExecOptions;
+
+        let options = CreateExecOptions {
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            attach_stdin: Some(true),
+            tty: Some(true),
+            cmd: Some(cmd),
+            ..Default::default()
+        };
+
+        let exec = self
+            .docker
+            .create_exec(id, options)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(exec)
+    }
+
+    async fn connect_exec(
+        &self,
+        exec_id: &str,
+    ) -> Result<bollard::exec::StartExecResults> {
+        use bollard::exec::StartExecOptions;
+
+        let options = StartExecOptions {
+            detach: false,
+            tty: true,
+            ..Default::default()
+        };
+
+        self.docker
+            .start_exec(exec_id, Some(options))
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))
+    }
 }

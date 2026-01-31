@@ -13,6 +13,21 @@ pub trait RuntimePort: Send + Sync {
     async fn inspect_container(&self, id: &str) -> Result<ContainerInfo>;
     async fn get_logs(&self, id: &str, tail: usize) -> Result<Vec<String>>;
     async fn get_stats(&self, id: &str) -> Result<ContainerStats>;
+    async fn build_image(
+        &self,
+        image_name: &str,
+        context_path: &str,
+        dockerfile_path: &str,
+    ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<String>>>;
+    async fn exec_command(
+        &self,
+        id: &str,
+        cmd: Vec<String>,
+    ) -> Result<bollard::exec::CreateExecResults>;
+    async fn connect_exec(
+        &self,
+        exec_id: &str,
+    ) -> Result<bollard::exec::StartExecResults>;
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

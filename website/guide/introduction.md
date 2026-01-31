@@ -24,7 +24,9 @@ Labuh diciptakan untuk menjembatani celah antara Docker Compose manual yang memb
 ## Fitur Unggulan
 
 - **Universal Multi-Arch**: Dukungan native untuk deployment di infrastruktur x86_64 dan ARM64.
+- **Git Integration & Build**: Deploy langsung dari repository Git dan bangun image dari Dockerfile secara otomatis.
 - **Manajemen Stack**: Deploy aplikasi multi-container menggunakan format standar `docker-compose.yml`.
+- **Terminal Interaktif**: Akses shell shell container langsung dari dashboard menggunakan Terminal terintegrasi.
 - **Reverse Proxy Otomatis**: Integrasi Caddy untuk manajemen rute dan SSL (HTTPS) otomatis.
 - **Monitoring & Log**: Pantau kesehatan sistem dan log container secara real-time dari satu dashboard.
 - **Webhook Automation**: Integrasikan Labuh dengan alur CI/CD Anda yang sudah ada untuk deployment otomatis.

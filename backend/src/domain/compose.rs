@@ -93,7 +93,7 @@ pub struct ParsedCompose {
     pub networks: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParsedService {
     pub labels: std::collections::HashMap<String, String>,
     pub name: String,
@@ -102,6 +102,13 @@ pub struct ParsedService {
     pub ports: HashMap<String, String>,
     pub volumes: HashMap<String, String>,
     pub depends_on: Vec<String>,
+    pub build: Option<ParsedBuild>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedBuild {
+    pub context: String,
+    pub dockerfile: String,
 }
 
 /// Blocked host paths that should never be mounted
@@ -189,18 +196,32 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
     let mut services = Vec::new();
 
     for (name, service) in compose.services {
-        // Get image (required for now, we don't support build)
-        let image = match (&service.image, &service.build) {
+        // Parse build context
+        let build = match &service.build {
+            Some(ComposeBuild::Simple(context)) => Some(ParsedBuild {
+                context: context.clone(),
+                dockerfile: "Dockerfile".to_string(),
+            }),
+            Some(ComposeBuild::Extended {
+                context,
+                dockerfile,
+            }) => Some(ParsedBuild {
+                context: context.clone(),
+                dockerfile: dockerfile.clone().unwrap_or_else(|| "Dockerfile".to_string()),
+            }),
+            None => None,
+        };
+
+        // Get image (required if no build, or can be specified with build as tag)
+        let image = match (&service.image, &build) {
             (Some(img), _) => img.clone(),
             (None, Some(_)) => {
-                return Err(AppError::Validation(format!(
-                    "Service '{}' uses build context which is not supported. Please use a pre-built image.",
-                    name
-                )));
+                // If no image name is provided but build is, we use the service name as the image name
+                format!("labuh-local/{}", name)
             }
             (None, None) => {
                 return Err(AppError::Validation(format!(
-                    "Service '{}' must have an image",
+                    "Service '{}' must have an image or build context",
                     name
                 )));
             }
@@ -250,6 +271,7 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
             volumes,
             depends_on: service.depends_on,
             labels: service.labels,
+            build,
         });
     }
 

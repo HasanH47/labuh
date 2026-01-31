@@ -39,6 +39,7 @@ export class StackController {
   selectedRange = $state("1h");
   selectedContainerLogs = $state<string | null>(null);
   showSecrets = $state<Set<string>>(new Set());
+  showBuildLogs = $state(false);
 
   constructor(id: string) {
     this.id = id;
@@ -197,12 +198,25 @@ export class StackController {
       : "Recreate all containers in this stack? This will apply any environment variable changes.";
     if (!confirm(msg)) return;
     this.actionLoading = true;
+    this.showBuildLogs = true;
     await api.stacks.redeploy(this.id, serviceName);
     await Promise.all([
       this.loadStack(),
       this.loadContainers(),
       this.loadHealth(),
     ]);
+    this.actionLoading = false;
+  }
+
+  async build(serviceName?: string) {
+    this.actionLoading = true;
+    this.showBuildLogs = true;
+    const result = await api.stacks.build(this.id, serviceName);
+    if (result.error) {
+      toast.error(result.message || result.error);
+    } else {
+      toast.success("Build triggered");
+    }
     this.actionLoading = false;
   }
 
@@ -295,6 +309,7 @@ export class StackController {
 
   async syncGit() {
     this.actionLoading = true;
+    this.showBuildLogs = true;
     try {
       const result = await api.stacks.syncGit(this.id);
       if (result.data) {

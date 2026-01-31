@@ -10,6 +10,7 @@ Ditulis menggunakan **Rust** dengan framework **Axum**.
 
 - **Role**: Mengelola database, menjalankan manajemen container lewat Docker API, dan melayani API serta Dashboard.
 - **Efisiensi**: Sangat cepat dan mengonsumsi memori yang sangat sedikit.
+- **Streaming**: Mendukung **WebSockets** untuk terminal interaktif dan **Server-Sent Events (SSE)** untuk streaming log build secara real-time.
 
 ### 2. Dashboard (Frontend)
 
@@ -34,7 +35,7 @@ Database file-based yang ringan.
 
 ```mermaid
 graph TD
-    User([User Browser]) -->|Dashboard/API| Labuh[Labuh Backend]
+    User([User Browser]) -->|REST / WS / SSE| Labuh[Labuh Backend]
     Labuh -->|Control| Docker[Docker Engine]
     Docker -->|Manage| Containers[Application Containers]
     User -->|Access Apps| Caddy[Caddy Proxy]
@@ -47,3 +48,4 @@ graph TD
 
 - **JWT Auth**: Semua akses API dan Dashboard dilindungi oleh token JWT dengan masa berlaku tertentu.
 - **Isolated Networks**: Labuh membuat network terisolasi (`labuh-network`) sehingga container aplikasi hanya bisa diakses lewat Caddy, bukan langsung dari internet kecuali jika Anda mengekspos portnya secara eksplisit.
+- **Permission Checks**: Setiap akses ke log, terminal, atau kontrol container diverifikasi berdasarkan kepemilikan team/user.

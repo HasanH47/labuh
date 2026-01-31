@@ -3,11 +3,12 @@
   import * as Card from '$lib/components/ui/card';
   import {
     ArrowLeft, Play, Square, Trash2, RefreshCw, FileCode,
-    RotateCcw, GitBranch, Download, Users, Layers
+    RotateCcw, GitBranch, Download, Users, Layers, Terminal
   } from '@lucide/svelte';
   import { goto } from '$app/navigation';
   import { activeTeam } from '$lib/stores';
   import type { StackController } from '../stack-controller.svelte';
+  import BuildLogs from '$lib/components/BuildLogs.svelte';
 
   let { ctrl = $bindable() } = $props<{ ctrl: StackController }>();
   const isViewer = $derived($activeTeam?.role === 'Viewer');
@@ -20,6 +21,11 @@
       default: return 'text-muted-foreground';
     }
   }
+
+  const hasBuild = $derived(
+    ctrl.stack?.git_url ||
+    ctrl.stack?.compose_content?.includes('build:')
+  );
 </script>
 
 <div class="flex items-center gap-4">
@@ -81,11 +87,23 @@
           <Button variant="outline" size="sm" onclick={() => ctrl.showComposeEditor = !ctrl.showComposeEditor}>
             <FileCode class="h-4 w-4 mr-1" /> Edit
           </Button>
-          {#if ctrl.stack.git_url}
-            <Button variant="outline" size="sm" onclick={() => ctrl.syncGit()} disabled={ctrl.actionLoading} title="Sync with Git and redeploy">
-              <GitBranch class="h-4 w-4 mr-1 {ctrl.actionLoading ? 'animate-spin' : ''}" /> Sync
-            </Button>
+
+          {#if hasBuild}
+            <div class="flex items-center gap-1 bg-muted/30 p-1 rounded-md">
+              {#if ctrl.stack.git_url}
+                <Button variant="ghost" size="sm" onclick={() => ctrl.syncGit()} disabled={ctrl.actionLoading} title="Sync with Git and redeploy">
+                  <GitBranch class="h-4 w-4 mr-1 {ctrl.actionLoading ? 'animate-spin' : ''}" /> Sync
+                </Button>
+              {/if}
+              <Button variant="ghost" size="sm" onclick={() => ctrl.build()} disabled={ctrl.actionLoading} title="Trigger Docker build for all services">
+                <Terminal class="h-4 w-4 mr-1 {ctrl.actionLoading ? 'animate-spin' : ''}" /> Build
+              </Button>
+              <Button variant="ghost" size="sm" onclick={() => ctrl.showBuildLogs = true} title="View build logs">
+                <Terminal class="h-4 w-4 mr-1" /> Logs
+              </Button>
+            </div>
           {/if}
+
           <Button variant="outline" size="sm" onclick={() => ctrl.export()} disabled={ctrl.actionLoading} title="Export stack as JSON backup">
             <Download class="h-4 w-4 mr-1" /> Export
           </Button>
@@ -119,4 +137,8 @@
     </div>
   </Card.Content>
 </Card.Root>
+
+{#if ctrl.showBuildLogs && ctrl.stack}
+  <BuildLogs stackId={ctrl.stack.id} onClose={() => ctrl.showBuildLogs = false} />
+{/if}
 {/if}

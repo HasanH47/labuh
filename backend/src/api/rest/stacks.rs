@@ -151,6 +151,15 @@ async fn update_stack_compose(
     Ok(Json(serde_json::json!({ "status": "updated" })))
 }
 
+async fn build_stack(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let _: () = usecase.build_stack(&id, &current_user.id).await?;
+    Ok(Json(serde_json::json!({ "status": "build_triggered" })))
+}
+
 async fn redeploy_stack(
     State(usecase): State<Arc<StackUsecase>>,
     Extension(_current_user): Extension<CurrentUser>,
@@ -203,6 +212,17 @@ async fn redeploy_service(
         .redeploy_service(&stack_id, &service_name, &current_user.id)
         .await?;
     Ok(Json(serde_json::json!({ "status": "redeployed" })))
+}
+
+async fn build_service(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path((stack_id, service_name)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>> {
+    let _: () = usecase
+        .build_service(&stack_id, &service_name, &current_user.id)
+        .await?;
+    Ok(Json(serde_json::json!({ "status": "build_triggered" })))
 }
 
 async fn get_stack_backup(
@@ -267,6 +287,32 @@ async fn sync_git(
     Ok(Json(serde_json::json!({ "status": "synced" })))
 }
 
+async fn build_logs_stream(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path(id): Path<String>,
+) -> Result<axum::response::Sse<impl tokio_stream::Stream<Item = std::result::Result<axum::response::sse::Event, std::convert::Infallible>>>> {
+    // Verify ownership
+    let _stack = usecase.get_stack(&id, &current_user.id).await?;
+
+    let rx = usecase.subscribe_build_logs();
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx);
+
+    let filtered_stream = tokio_stream::StreamExt::filter_map(stream, move |res| {
+        match res {
+            Ok(msg) if msg.stack_id == id => {
+                let json = serde_json::to_string(&msg).ok()?;
+                Some(std::result::Result::Ok(
+                    axum::response::sse::Event::default().data(json),
+                ))
+            }
+            _ => None,
+        }
+    });
+
+    Ok(axum::response::Sse::new(filtered_stream))
+}
+
 pub fn stack_routes(usecase: Arc<StackUsecase>) -> Router {
     Router::new()
         .route("/", get(list_stacks))
@@ -278,14 +324,20 @@ pub fn stack_routes(usecase: Arc<StackUsecase>) -> Router {
         .route("/{id}/containers", get(get_stack_containers))
         .route("/{id}/health", get(get_stack_health))
         .route("/{id}/logs", get(get_stack_logs))
+        .route("/{id}/build-logs", get(build_logs_stream))
         .route("/{id}/start", post(start_stack))
         .route("/{id}/stop", post(stop_stack))
         .route("/{id}/redeploy", post(redeploy_stack))
+        .route("/{id}/build", post(build_stack))
         .route("/{id}/backup", get(get_stack_backup))
         .route("/{id}/git/sync", post(sync_git))
         .route(
             "/{id}/services/{service_name}/redeploy",
             post(redeploy_service),
+        )
+        .route(
+            "/{id}/services/{service_name}/build",
+            post(build_service),
         )
         .route("/{id}/compose", axum::routing::put(update_stack_compose))
         .route("/{id}/webhook/regenerate", post(regenerate_webhook_token))

@@ -111,3 +111,10 @@ pub struct BackupEnvVar {
     pub value: String,
     pub is_secret: bool,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildLogMessage {
+    pub stack_id: String,
+    pub service: String,
+    pub message: String,
+    pub is_error: bool,
+}

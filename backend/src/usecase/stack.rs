@@ -24,6 +24,7 @@ pub struct StackUsecase {
     resource_repo: Arc<dyn ResourceRepository>,
     team_repo: Arc<dyn TeamRepository>,
     git_service: Arc<crate::infrastructure::git::GitService>,
+    build_log_tx: tokio::sync::broadcast::Sender<crate::domain::models::stack::BuildLogMessage>,
 }
 
 impl StackUsecase {
@@ -35,6 +36,7 @@ impl StackUsecase {
         resource_repo: Arc<dyn ResourceRepository>,
         team_repo: Arc<dyn TeamRepository>,
     ) -> Self {
+        let (build_log_tx, _) = tokio::sync::broadcast::channel(1024);
         Self {
             repo,
             runtime,
@@ -43,7 +45,14 @@ impl StackUsecase {
             resource_repo,
             team_repo,
             git_service: Arc::new(crate::infrastructure::git::GitService::new()),
+            build_log_tx,
         }
+    }
+
+    pub fn subscribe_build_logs(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<crate::domain::models::stack::BuildLogMessage> {
+        self.build_log_tx.subscribe()
     }
 
     pub fn runtime(&self) -> Arc<dyn RuntimePort> {
@@ -112,7 +121,7 @@ impl StackUsecase {
 
         self.repo.create(stack.clone()).await?;
 
-        self.build_stack_services(&stack, compose_content).await?;
+        self.build_stack_services(&stack, compose_content, None, None).await?;
 
         self.repo.update_status(&id, "stopped").await?;
         self.get_stack(&id, user_id).await
@@ -181,7 +190,7 @@ impl StackUsecase {
         self.repo.create(stack.clone()).await?;
 
         // 5. Build services
-        self.build_stack_services(&stack, &compose_content).await?;
+        self.build_stack_services(&stack, &compose_content, Some(&target_dir), None).await?;
 
         self.repo.update_status(&id, "stopped").await?;
         self.get_stack(&id, user_id).await
@@ -225,12 +234,78 @@ impl StackUsecase {
         Ok(())
     }
 
-    async fn build_stack_services(&self, stack: &Stack, compose_content: &str) -> Result<()> {
+    async fn build_stack_services(
+        &self,
+        stack: &Stack,
+        compose_content: &str,
+        base_path: Option<&str>,
+        service_name: Option<&str>,
+    ) -> Result<()> {
         let parsed = parse_compose(compose_content)?;
 
         for service in &parsed.services {
+            if let Some(target) = service_name {
+                if service.name != target && format!("{}-{}", stack.name, service.name) != target {
+                    continue;
+                }
+            }
             let mut config = service_to_container_request(service, &stack.id, &stack.name);
 
+            // 1. Handle image preparation (Pull or Build)
+            if let Some(build) = &service.build {
+                if let Some(base) = base_path {
+                    let context_path = format!("{}/{}", base, build.context);
+                    tracing::info!("Building image {} from {}", config.image, context_path);
+
+                    let mut log_stream = self
+                        .runtime
+                        .build_image(&config.image, &context_path, &build.dockerfile)
+                        .await?;
+
+                    use tokio_stream::StreamExt;
+                    while let Some(log_result) = log_stream.next().await {
+                        match log_result {
+                            Ok(log) => {
+                                tracing::debug!("Build [{}]: {}", service.name, log);
+                                let _ = self.build_log_tx.send(
+                                    crate::domain::models::stack::BuildLogMessage {
+                                        stack_id: stack.id.clone(),
+                                        service: service.name.clone(),
+                                        message: log,
+                                        is_error: false,
+                                    },
+                                );
+                            }
+                            Err(e) => {
+                                tracing::error!("Build error [{}]: {}", service.name, e);
+                                let _ = self.build_log_tx.send(
+                                    crate::domain::models::stack::BuildLogMessage {
+                                        stack_id: stack.id.clone(),
+                                        service: service.name.clone(),
+                                        message: e.to_string(),
+                                        is_error: true,
+                                    },
+                                );
+                                return Err(e);
+                            }
+                        }
+                    }
+                } else {
+                    return Err(AppError::BadRequest(format!(
+                        "Service '{}' specifies a build context but no base path is provided (is this a Git stack?)",
+                        service.name
+                    )));
+                }
+            } else {
+                // Not a build, pull the image
+                let creds = self
+                    .registry_usecase
+                    .get_credentials_for_image_internal(&stack.team_id, &config.image)
+                    .await?;
+                self.runtime.pull_image(&config.image, creds).await?;
+            }
+
+            // 2. Prepare environment and resource limits
             let db_env = self
                 .environment_usecase
                 .get_env_map_for_container(&stack.id, &service.name)
@@ -253,13 +328,20 @@ impl StackUsecase {
                 config.env = Some(merged_env);
             }
 
-            let creds = self
-                .registry_usecase
-                .get_credentials_for_image_internal(&stack.team_id, &config.image)
-                .await?;
-            self.runtime.pull_image(&config.image, creds).await?;
             self.apply_resource_limits(&stack.id, &service.name, &mut config)
                 .await?;
+
+            // 3. Replace container (Stop and Remove old one if exists)
+            let containers = self.get_stack_containers(&stack.id).await?;
+            let prefix = format!("/{}-{}", stack.name, service.name);
+            for c in containers {
+                if c.names.iter().any(|n| n == &prefix) {
+                    let _ = self.runtime.stop_container(&c.id).await;
+                    let _ = self.runtime.remove_container(&c.id, true).await;
+                }
+            }
+
+            // 4. Create new container
             self.runtime.create_container(config).await?;
         }
         Ok(())
@@ -303,56 +385,22 @@ impl StackUsecase {
         self.save_stable_images(id).await?;
 
         self.repo.update_status(id, "deploying").await?;
-        let parsed = parse_compose(&compose_content)?;
 
-        for service in &parsed.services {
-            let mut config = service_to_container_request(service, &stack.id, &stack.name);
+        // 2. Determine base path for builds (for git stacks)
+        let base_path = if stack.git_url.is_some() {
+            Some(format!("backend/data/git/{}", id))
+        } else {
+            None
+        };
 
-            let db_env = self
-                .environment_usecase
-                .get_env_map_for_container(id, &service.name)
-                .await
-                .unwrap_or_default();
+        // 3. Build and recreate services
+        self.build_stack_services(&stack, &compose_content, base_path.as_deref(), None)
+            .await?;
 
-            if !db_env.is_empty() {
-                let mut merged_env = config.env.unwrap_or_default();
-                for (key, value) in &db_env {
-                    let entry = format!("{}={}", key, value);
-                    if let Some(pos) = merged_env
-                        .iter()
-                        .position(|e: &String| e.starts_with(&format!("{}=", key)))
-                    {
-                        merged_env[pos] = entry;
-                    } else {
-                        merged_env.push(entry);
-                    }
-                }
-                config.env = Some(merged_env);
-            }
-
-            let creds = self
-                .registry_usecase
-                .get_credentials_for_image_internal(&stack.team_id, &config.image)
-                .await?;
-            self.runtime.pull_image(&config.image, creds).await?;
-
-            let containers = self.get_stack_containers(&stack.id).await?;
-            let prefix = format!("/{}-{}", stack.name, service.name);
-            for c in containers {
-                if c.names.iter().any(|n| n == &prefix) {
-                    let _ = self.runtime.stop_container(&c.id).await;
-                    let _ = self.runtime.remove_container(&c.id, true).await;
-                }
-            }
-
-            self.apply_resource_limits(id, &service.name, &mut config)
-                .await?;
-            self.runtime.create_container(config).await?;
-        }
-
+        // 4. Start all containers
         self.start_stack(id, &stack.user_id).await?;
 
-        // 2. Perform health check
+        // 5. Perform health check
         if let Err(e) = self.perform_health_check(id).await {
             tracing::error!(
                 "Health check failed for stack {}: {}. Triggering rollback...",
@@ -362,6 +410,72 @@ impl StackUsecase {
             self.rollback_stack(id, &stack.user_id).await?;
             return Err(e);
         }
+
+        Ok(())
+    }
+
+    pub async fn build_stack(&self, id: &str, user_id: &str) -> Result<()> {
+        let stack = self.get_stack(id, user_id).await?;
+        let compose_content = stack.compose_content.clone().ok_or_else(|| {
+            crate::error::AppError::BadRequest("Stack has no compose content".to_string())
+        })?;
+
+        // Determine base path for builds (for git stacks)
+        let base_path = if stack.git_url.is_some() {
+            Some(format!("backend/data/git/{}", id))
+        } else {
+            None
+        };
+
+        // Trigger build only
+        self.build_stack_services(&stack, &compose_content, base_path.as_deref(), None)
+            .await?;
+
+        // Send a "Finished" log message
+        let _ = self.build_log_tx.send(crate::domain::models::stack::BuildLogMessage {
+            stack_id: id.to_string(),
+            service: "system".to_string(),
+            message: "Build process finished successfully".to_string(),
+            is_error: false,
+        });
+
+        Ok(())
+    }
+
+    pub async fn build_service(
+        &self,
+        id: &str,
+        service_name: &str,
+        user_id: &str,
+    ) -> Result<()> {
+        let stack = self.get_stack(id, user_id).await?;
+        let compose_content = stack.compose_content.clone().ok_or_else(|| {
+            crate::error::AppError::BadRequest("Stack has no compose content".to_string())
+        })?;
+
+        // Determine base path for builds (for git stacks)
+        let base_path = if stack.git_url.is_some() {
+            Some(format!("backend/data/git/{}", id))
+        } else {
+            None
+        };
+
+        // Build specified service
+        self.build_stack_services(
+            &stack,
+            &compose_content,
+            base_path.as_deref(),
+            Some(service_name),
+        )
+        .await?;
+
+        // Send a "Finished" log message
+        let _ = self.build_log_tx.send(crate::domain::models::stack::BuildLogMessage {
+            stack_id: id.to_string(),
+            service: service_name.to_string(),
+            message: format!("Build for service '{}' finished successfully", service_name),
+            is_error: false,
+        });
 
         Ok(())
     }
@@ -655,61 +769,29 @@ impl StackUsecase {
         user_id: &str,
     ) -> Result<()> {
         let stack = self.get_stack(stack_id, user_id).await?;
-        let compose_content = stack.compose_content.ok_or_else(|| {
+        let compose_content = stack.compose_content.clone().ok_or_else(|| {
             crate::error::AppError::BadRequest("Stack has no compose content".to_string())
         })?;
-        let parsed = parse_compose(&compose_content)?;
-        let service = parsed
-            .services
-            .iter()
-            .find(|s| {
-                s.name.to_lowercase() == service_name.to_lowercase()
-                    || format!("{}-{}", stack.name, s.name).to_lowercase()
-                        == service_name.to_lowercase()
-            })
-            .ok_or_else(|| {
-                crate::error::AppError::NotFound(format!("Service {} not found", service_name))
-            })?;
-        let mut config = service_to_container_request(service, &stack.id, &stack.name);
 
-        let db_env = self
-            .environment_usecase
-            .get_env_map_for_container(stack_id, &service.name)
-            .await
-            .unwrap_or_default();
+        // Determine base path for builds (for git stacks)
+        let base_path = if stack.git_url.is_some() {
+            Some(format!("backend/data/git/{}", stack_id))
+        } else {
+            None
+        };
 
-        if !db_env.is_empty() {
-            let mut merged_env = config.env.unwrap_or_default();
-            for (key, value) in &db_env {
-                let entry = format!("{}={}", key, value);
-                if let Some(pos) = merged_env
-                    .iter()
-                    .position(|e: &String| e.starts_with(&format!("{}=", key)))
-                {
-                    merged_env[pos] = entry;
-                } else {
-                    merged_env.push(entry);
-                }
-            }
-            config.env = Some(merged_env);
-        }
+        // Build and recreate the specific service
+        self.build_stack_services(
+            &stack,
+            &compose_content,
+            base_path.as_deref(),
+            Some(service_name),
+        )
+        .await?;
 
-        let creds = self
-            .registry_usecase
-            .get_credentials_for_image_internal(&stack.team_id, &config.image)
-            .await?;
-        self.runtime.pull_image(&config.image, creds).await?;
-        let containers = self.get_stack_containers(&stack.id).await?;
-        let prefix = format!("/{}-{}", stack.name, service.name);
-        for c in containers {
-            if c.names.iter().any(|n| n == &prefix) {
-                let _ = self.runtime.stop_container(&c.id).await;
-                let _ = self.runtime.remove_container(&c.id, true).await;
-            }
-        }
-        self.apply_resource_limits(stack_id, &service.name, &mut config)
-            .await?;
-        self.runtime.create_container(config).await?;
+        // Ensure the container is started
+        self.start_stack(stack_id, user_id).await?;
+
         Ok(())
     }
 

@@ -1,12 +1,16 @@
 <script lang="ts">
   import { Button } from '$lib/components/ui/button';
   import * as Card from '$lib/components/ui/card';
-  import { Container as ContainerIcon, RefreshCw, Terminal } from '@lucide/svelte';
+  import { Container as ContainerIcon, RefreshCw, Terminal, Monitor, Hammer } from '@lucide/svelte';
   import { activeTeam } from '$lib/stores';
   import type { StackController } from '../stack-controller.svelte';
+  import TerminalExec from '$lib/components/TerminalExec.svelte';
 
   let { ctrl = $bindable() } = $props<{ ctrl: StackController }>();
   const isViewer = $derived($activeTeam?.role === 'Viewer');
+
+  let showTerminal = $state(false);
+  let selectedContainerId = $state<string | null>(null);
 
   function getStatusBg(state: string): string {
     switch (state) {
@@ -15,6 +19,11 @@
       case 'paused': return 'bg-yellow-500';
       default: return 'bg-muted-foreground';
     }
+  }
+
+  function openTerminal(containerId: string) {
+    selectedContainerId = containerId;
+    showTerminal = true;
   }
 </script>
 
@@ -55,12 +64,24 @@
             <Button variant="ghost" size="sm" onclick={() => ctrl.loadContainerLogs(container.id)} title="View Logs">
               <Terminal class="h-4 w-4" />
             </Button>
+            <Button variant="ghost" size="sm" onclick={() => openTerminal(container.id)} title="Terminal Exec">
+              <Monitor class="h-4 w-4" />
+            </Button>
             {#if !isViewer}
               <Button
                 variant="ghost"
                 size="sm"
+                onclick={() => ctrl.build(container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, ''))}
+                title="Build Service"
+                disabled={ctrl.actionLoading}
+              >
+                <Hammer class="h-4 w-4 {ctrl.actionLoading ? 'animate-spin' : ''}" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onclick={() => ctrl.redeploy(container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, ''))}
-                title="Redeploy Service"
+                title="Restart Service"
                 disabled={ctrl.actionLoading}
               >
                 <RefreshCw class="h-4 w-4 {ctrl.actionLoading ? 'animate-spin' : ''}" />
@@ -72,3 +93,7 @@
     {/if}
   </Card.Content>
 </Card.Root>
+
+{#if showTerminal && selectedContainerId}
+  <TerminalExec containerId={selectedContainerId} onClose={() => showTerminal = false} />
+{/if}

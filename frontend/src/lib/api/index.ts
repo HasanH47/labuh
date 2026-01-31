@@ -478,6 +478,15 @@ export const api = {
       });
     },
 
+    build: async (id: string, serviceName?: string) => {
+      const url = serviceName
+        ? `/stacks/${id}/services/${serviceName}/build`
+        : `/stacks/${id}/build`;
+      return fetchApi<{ status: string }>(url, {
+        method: "POST",
+      });
+    },
+
     updateCompose: async (id: string, composeContent: string) => {
       return fetchApi<{ status: string }>(`/stacks/${id}/compose`, {
         method: "PUT",
