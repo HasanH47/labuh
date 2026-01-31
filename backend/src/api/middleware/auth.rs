@@ -44,19 +44,13 @@ pub async fn auth_middleware(
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok());
 
-    let token_from_header = auth_header.and_then(|h| {
-        if h.starts_with("Bearer ") {
-            Some(&h[7..])
-        } else {
-            None
-        }
-    });
+    let token_from_header = auth_header.and_then(|h| h.strip_prefix("Bearer "));
 
-    let token_from_query = request.uri().query().and_then(|q| {
-        q.split('&')
-            .find(|pair| pair.starts_with("token="))
-            .map(|pair| &pair[6..])
-    });
+    let token_from_query = request
+        .uri()
+        .query()
+        .and_then(|q| q.split('&').find(|pair| pair.starts_with("token=")))
+        .and_then(|pair| pair.strip_prefix("token="));
 
     let token = match (token_from_header, token_from_query) {
         (Some(t), _) => t,

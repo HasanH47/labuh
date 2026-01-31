@@ -190,7 +190,7 @@ async fn handle_socket(
             Some(Ok(output)) = docker_rx.next() => {
                 match output {
                     LogOutput::StdOut { message } | LogOutput::StdErr { message } | LogOutput::Console { message } => {
-                        if socket.send(axum::extract::ws::Message::Binary(message.into())).await.is_err() {
+                        if socket.send(axum::extract::ws::Message::Binary(message)).await.is_err() {
                             break;
                         }
                     }
