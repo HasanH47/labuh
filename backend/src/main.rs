@@ -19,7 +19,7 @@ use crate::api::middleware::auth_middleware;
 use crate::api::rest::auth::protected_auth_routes;
 use crate::api::rest::{
     auth_routes, container_routes, deployment_log_routes, domain_routes, environment_routes,
-    health_routes, image_routes, registry_routes, stack_routes, system_routes,
+    health_routes, image_routes, registry_routes, resource_routes, stack_routes, system_routes,
 };
 use crate::config::Config;
 use crate::services::{
@@ -160,12 +160,41 @@ async fn main() -> anyhow::Result<()> {
         );
         let runtime_adapter =
             Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
+
+        // Create resource components (New Phase 11)
+        let resource_repo = Arc::new(
+            crate::infrastructure::sqlite::resource::SqliteResourceRepository::new(pool.clone()),
+        );
+        let resource_usecase = Arc::new(crate::usecase::resource::ResourceUsecase::new(
+            resource_repo.clone(),
+            stack_repo.clone(),
+        ));
+
+        let metrics_collector = Arc::new(crate::usecase::metrics_collector::MetricsCollector::new(
+            stack_repo.clone(),
+            resource_repo.clone(),
+            runtime_adapter.clone(),
+        ));
+        tokio::spawn(async move {
+            metrics_collector.start().await;
+        });
+
         let stack_usecase = Arc::new(crate::usecase::stack::StackUsecase::new(
             stack_repo.clone(),
             runtime_adapter.clone(),
             env_usecase.clone(),
             registry_usecase.clone(),
+            resource_repo.clone(),
         ));
+
+        // Start Automation Scheduler
+        let scheduler = Arc::new(crate::usecase::scheduler::AutomationScheduler::new(
+            stack_usecase.clone(),
+            stack_repo.clone(),
+        ));
+        tokio::spawn(async move {
+            scheduler.start().await;
+        });
 
         // Create stack service (Legacy)
         let _stack_service = Arc::new(StackService::new(
@@ -201,6 +230,7 @@ async fn main() -> anyhow::Result<()> {
                 "/stacks",
                 deployment_log_routes(log_usecase.clone(), stack_usecase.clone()),
             )
+            .nest("/stacks", resource_routes(resource_usecase.clone()))
             .nest(
                 "/stacks",
                 environment_routes(env_usecase, stack_usecase.clone()),

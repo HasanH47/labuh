@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
-	import { api, API_URL, type Stack, type Container, type Domain, type DeploymentLog, type StackHealth, type EnvVar } from '$lib/api';
+	import { api, API_URL, type Stack, type Container, type Domain, type DeploymentLog, type StackHealth, type EnvVar, type ContainerResource, type ResourceMetric } from '$lib/api';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -13,8 +13,10 @@
 	import {
 		ArrowLeft, Play, Square, Trash2, RefreshCw, Terminal, Layers,
 		Container as ContainerIcon, FileCode, Save, CheckCircle, XCircle,
-		Globe, History, Webhook, Copy, AlertCircle, RotateCcw, Activity, Settings, Eye, EyeOff, Plus, ExternalLink
+		Globe, History, Webhook, Copy, AlertCircle, RotateCcw, Activity, Settings, Eye, EyeOff, Plus, ExternalLink,
+		Cpu, HardDrive, Gauge
 	} from '@lucide/svelte';
+	import ResourceChart from '$lib/components/ResourceChart.svelte';
 
 	const stackId: string = $page.params.id ?? '';
 
@@ -32,6 +34,25 @@
 	let newEnvContainer = $state(''); // empty for global
 	let newEnvSecret = $state(false);
 	let showSecrets = $state<Set<string>>(new Set());
+
+	// New Resource & Metrics state
+	let resourceLimits = $state<ContainerResource[]>([]);
+	let metrics = $state<ResourceMetric[]>([]);
+	let selectedRange = $state("1h");
+	let savingResources = $state<Set<string>>(new Set());
+
+	let cronSchedule = $state('');
+	let healthCheckPath = $state('');
+	let healthCheckInterval = $state(30);
+	let savingAutomation = $state(false);
+
+	$effect(() => {
+		if (stack) {
+			cronSchedule = stack.cron_schedule || '';
+			healthCheckPath = stack.health_check_path || '';
+			healthCheckInterval = stack.health_check_interval || 30;
+		}
+	});
 
 	let loading = $state(true);
 	let actionLoading = $state(false);
@@ -90,6 +111,57 @@
 		}
 	}
 
+	async function loadResourceLimits() {
+		const result = await api.stacks.resources.getLimits(stackId);
+		if (result.data) {
+			let limits = result.data;
+
+			// Ensure all services have an entry
+			const serviceNames = containers.map(c => c.labels?.['labuh.service.name'] || c.names[0]?.replace(/^\//, ''));
+			for (const name of serviceNames) {
+				if (!limits.find(l => l.service_name === name)) {
+					limits.push({
+						id: '',
+						stack_id: stackId,
+						service_name: name,
+						cpu_limit: undefined,
+						memory_limit: undefined,
+						created_at: '',
+						updated_at: ''
+					});
+				}
+			}
+			resourceLimits = limits;
+		}
+	}
+
+	async function loadMetrics() {
+		const result = await api.stacks.resources.getMetrics(stackId, selectedRange);
+		if (result.data) {
+			metrics = result.data;
+		}
+	}
+
+	async function updateResourceLimit(serviceName: string, cpuLimit: number | undefined, memoryLimit: number | undefined) {
+		savingResources.add(serviceName);
+
+		// Memory limit input is usually in MB from UI, convert to bytes for API
+		const memBytes = memoryLimit ? memoryLimit * 1024 * 1024 : undefined;
+
+		const result = await api.stacks.resources.updateLimits(stackId, serviceName, {
+			cpu_limit: cpuLimit,
+			memory_limit: memBytes
+		});
+
+		if (result.error) {
+			toast.error(`Error: ${result.error}`);
+		} else {
+			toast.success(`Limits updated for ${serviceName}. Redeploy to apply.`);
+			await loadResourceLimits();
+		}
+		savingResources.delete(serviceName);
+	}
+
 	async function loadContainerLogs(containerId: string) {
 		selectedContainerLogs = containerId;
 		const result = await api.containers.logs(containerId, 100);
@@ -99,16 +171,34 @@
 		}
 	}
 
-	onMount(async () => {
-		await loadStack();
-		if (stack) {
-			await Promise.all([
-				loadContainers(),
-				loadDomains(),
-				loadDeployments(),
-				loadHealth(),
-				loadEnvVars()
-			]);
+	onMount(() => {
+		(async () => {
+			await loadStack();
+			if (stack) {
+				await Promise.all([
+					loadContainers(),
+					loadDomains(),
+					loadDeployments(),
+					loadHealth(),
+					loadEnvVars(),
+					loadResourceLimits(),
+					loadMetrics()
+				]);
+			}
+		})();
+
+		const interval = setInterval(() => {
+			loadContainers();
+			loadHealth();
+			loadMetrics();
+		}, 30000); // 30s auto-refresh
+
+		return () => clearInterval(interval);
+	});
+
+	$effect(() => {
+		if (selectedRange) {
+			loadMetrics();
 		}
 	});
 
@@ -144,6 +234,47 @@
 		actionLoading = true;
 		await api.stacks.remove(stack.id);
 		goto('/dashboard/stacks');
+	}
+
+	async function rollbackStack() {
+		if (!stack) return;
+		if (!confirm('Revert all containers in this stack to the last stable images?')) return;
+		actionLoading = true;
+		try {
+			const result = await api.stacks.rollback(stack.id);
+			if (result.error) {
+				toast.error(result.message || result.error);
+			} else {
+				toast.success('Rollback triggered');
+				await Promise.all([loadStack(), loadContainers(), loadHealth()]);
+			}
+		} catch (e: any) {
+			toast.error(e.message || 'Failed to rollback stack');
+		} finally {
+			actionLoading = false;
+		}
+	}
+
+	async function updateAutomation() {
+		if (!stack) return;
+		savingAutomation = true;
+		try {
+			const result = await api.stacks.updateAutomation(stack.id, {
+				cron_schedule: cronSchedule,
+				health_check_path: healthCheckPath,
+				health_check_interval: healthCheckInterval
+			});
+			if (result.error) {
+				toast.error(result.message || result.error);
+			} else {
+				toast.success('Automation settings updated');
+				await loadStack();
+			}
+		} catch (e: any) {
+			toast.error(e.message || 'Failed to update automation settings');
+		} finally {
+			savingAutomation = false;
+		}
 	}
 
 	async function saveCompose() {
@@ -345,6 +476,16 @@
 										<Square class="h-4 w-4 mr-1" /> Stop
 									</Button>
 								{/if}
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={rollbackStack}
+									disabled={actionLoading || !stack.last_stable_images}
+									title="Rollback to last stable version"
+								>
+									<RotateCcw class="h-4 w-4 mr-1 {actionLoading ? 'animate-spin' : ''}" />
+									{actionLoading ? 'Rolling back...' : 'Rollback'}
+								</Button>
 								<Button variant="outline" size="sm" onclick={() => redeployStack()} disabled={actionLoading} title="Recreate containers to apply changes">
 									<RotateCcw class="h-4 w-4 mr-1" /> Restart
 								</Button>
@@ -462,6 +603,101 @@
 								</div>
 							{/each}
 						{/if}
+					</Card.Content>
+				</Card.Root>
+
+				<!-- Monitoring -->
+				<Card.Root>
+					<Card.Header>
+						<div class="flex items-center justify-between">
+							<Card.Title class="flex items-center gap-2">
+								<Activity class="h-5 w-5" />
+								Monitoring
+							</Card.Title>
+							<select bind:value={selectedRange} class="bg-background border rounded px-2 py-1 text-xs">
+								<option value="1h">Last Hour</option>
+								<option value="6h">Last 6 Hours</option>
+								<option value="24h">Last 24 Hours</option>
+								<option value="7d">Last 7 Days</option>
+							</select>
+						</div>
+					</Card.Header>
+					<Card.Content class="space-y-6">
+						{#if metrics.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-8">No monitoring data available yet.</p>
+						{:else}
+							<div class="space-y-4">
+								<div>
+									<h4 class="text-xs font-medium uppercase text-muted-foreground mb-1">CPU Usage (%)</h4>
+									<ResourceChart {metrics} type="cpu" />
+								</div>
+								<div>
+									<h4 class="text-xs font-medium uppercase text-muted-foreground mb-1">Memory Usage (MB)</h4>
+									<ResourceChart {metrics} type="memory" />
+								</div>
+							</div>
+						{/if}
+					</Card.Content>
+				</Card.Root>
+
+				<!-- Resource Limits -->
+				<Card.Root>
+					<Card.Header>
+						<Card.Title class="flex items-center gap-2">
+							<Settings class="h-5 w-5" />
+							Resource Limits
+						</Card.Title>
+						<Card.Description>Configure CPU and Memory constraints per service</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						{#each containers as container}
+							{@const serviceName = container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, '')}
+							{@const limits = resourceLimits.find(l => l.service_name === serviceName)}
+							<div class="p-4 border rounded-lg space-y-3">
+								<div class="flex items-center justify-between">
+									<h4 class="font-medium text-sm">{serviceName}</h4>
+									<Button
+										size="sm"
+										variant="outline"
+										onclick={() => updateResourceLimit(serviceName, limits?.cpu_limit, limits?.memory_limit ? limits.memory_limit / (1024 * 1024) : undefined)}
+										disabled={savingResources.has(serviceName)}
+									>
+										{savingResources.has(serviceName) ? 'Saving...' : 'Save'}
+									</Button>
+								</div>
+								<div class="grid grid-cols-2 gap-4">
+									<div class="space-y-1">
+										<Label class="text-[10px] uppercase font-bold text-muted-foreground">CPU Limit (Cores)</Label>
+										<Input
+											type="number"
+											step="0.1"
+											placeholder="e.g. 0.5"
+											bind:value={() => resourceLimits.find(l => l.service_name === serviceName)?.cpu_limit, (v) => {
+												let l = resourceLimits.find(l => l.service_name === serviceName);
+												if (l) l.cpu_limit = v;
+												else resourceLimits.push({ id: '', stack_id: stackId, service_name: serviceName, cpu_limit: v, memory_limit: undefined, created_at: '', updated_at: '' });
+											}}
+										/>
+									</div>
+									<div class="space-y-1">
+										<Label class="text-[10px] uppercase font-bold text-muted-foreground">Memory Limit (MB)</Label>
+										<Input
+											type="number"
+											placeholder="e.g. 512"
+											bind:value={() => {
+												const limit = resourceLimits.find(l => l.service_name === serviceName);
+												return limit?.memory_limit ? limit.memory_limit / (1024 * 1024) : undefined;
+											}, (v) => {
+												let l = resourceLimits.find(l => l.service_name === serviceName);
+												const bytes = v ? v * 1024 * 1024 : undefined;
+												if (l) l.memory_limit = bytes;
+												else resourceLimits.push({ id: '', stack_id: stackId, service_name: serviceName, cpu_limit: undefined, memory_limit: bytes, created_at: '', updated_at: '' });
+											}}
+										/>
+									</div>
+								</div>
+							</div>
+						{/each}
 					</Card.Content>
 				</Card.Root>
 
@@ -683,6 +919,35 @@
 								Generate Webhook
 							</Button>
 						{/if}
+					</Card.Content>
+				</Card.Root>
+
+				<!-- Automation -->
+				<Card.Root>
+					<Card.Header>
+						<Card.Title class="flex items-center gap-2">
+							<Play class="h-5 w-5" />
+							Automation
+						</Card.Title>
+						<Card.Description>Scheduled pulls & health checks</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						<div class="space-y-2">
+							<Label class="text-xs">Cron Schedule (e.g. 0 0 * * * *)</Label>
+							<Input bind:value={cronSchedule} placeholder="0 0 * * * *" class="font-mono text-xs" />
+							<p class="text-[10px] text-muted-foreground italic">Standard cron: sec min hour day month dow</p>
+						</div>
+						<div class="space-y-2">
+							<Label class="text-xs">Health Check Path (HTTP URL)</Label>
+							<Input bind:value={healthCheckPath} placeholder="http://yourapp.labuh:8080/health" class="font-mono text-xs" />
+						</div>
+						<div class="space-y-2">
+							<Label class="text-xs">Interval (seconds)</Label>
+							<Input type="number" bind:value={healthCheckInterval} class="font-mono text-xs" />
+						</div>
+						<Button variant="outline" size="sm" class="w-full" onclick={updateAutomation} disabled={savingAutomation}>
+							<Save class="h-3 w-3 mr-1" /> {savingAutomation ? 'Saving...' : 'Save Automation'}
+						</Button>
 					</Card.Content>
 				</Card.Root>
 

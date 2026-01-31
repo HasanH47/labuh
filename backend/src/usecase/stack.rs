@@ -11,12 +11,14 @@ use crate::domain::stack_repository::StackRepository;
 use crate::error::{AppError, Result};
 use crate::usecase::environment::EnvironmentUsecase;
 use crate::usecase::registry::RegistryUsecase;
+use crate::domain::resource_repository::ResourceRepository;
 
 pub struct StackUsecase {
     repo: Arc<dyn StackRepository>,
     runtime: Arc<dyn RuntimePort>,
     environment_usecase: Arc<EnvironmentUsecase>,
     registry_usecase: Arc<RegistryUsecase>,
+    resource_repo: Arc<dyn ResourceRepository>,
 }
 
 impl StackUsecase {
@@ -25,12 +27,14 @@ impl StackUsecase {
         runtime: Arc<dyn RuntimePort>,
         environment_usecase: Arc<EnvironmentUsecase>,
         registry_usecase: Arc<RegistryUsecase>,
+        resource_repo: Arc<dyn ResourceRepository>,
     ) -> Self {
         Self {
             repo,
             runtime,
             environment_usecase,
             registry_usecase,
+            resource_repo,
         }
     }
 
@@ -69,6 +73,10 @@ impl StackUsecase {
             compose_content: Some(compose_content.to_string()),
             status: "creating".to_string(),
             webhook_token: Some(token),
+            cron_schedule: None,
+            health_check_path: None,
+            health_check_interval: 30,
+            last_stable_images: None,
             created_at: now.clone(),
             updated_at: now,
         };
@@ -105,6 +113,7 @@ impl StackUsecase {
                 .get_credentials_for_image(user_id, &config.image)
                 .await?;
             self.runtime.pull_image(&config.image, creds).await?;
+            self.apply_resource_limits(&id, &service.name, &mut config).await?;
             self.runtime.create_container(config).await?;
         }
 
@@ -145,6 +154,9 @@ impl StackUsecase {
         let compose_content = stack.compose_content.clone().ok_or_else(|| {
             crate::error::AppError::BadRequest("Stack has no compose content".to_string())
         })?;
+
+        // 1. Save current images for rollback
+        self.save_stable_images(id).await?;
 
         self.repo.update_status(id, "deploying").await?;
         let parsed = parse_compose(&compose_content)?;
@@ -189,10 +201,19 @@ impl StackUsecase {
                 }
             }
 
+            self.apply_resource_limits(id, &service.name, &mut config).await?;
             self.runtime.create_container(config).await?;
         }
 
         self.start_stack(id, &stack.user_id).await?;
+
+        // 2. Perform health check
+        if let Err(e) = self.perform_health_check(id).await {
+            tracing::error!("Health check failed for stack {}: {}. Triggering rollback...", id, e);
+            self.rollback_stack(id, &stack.user_id).await?;
+            return Err(e);
+        }
+
         Ok(())
     }
 
@@ -318,6 +339,159 @@ impl StackUsecase {
         Ok(token)
     }
 
+    pub async fn update_automation(
+        &self,
+        id: &str,
+        user_id: &str,
+        cron: Option<String>,
+        health_path: Option<String>,
+        health_interval: i32,
+    ) -> Result<()> {
+        let _stack = self.get_stack(id, user_id).await?;
+        self.repo
+            .update_automation(id, cron, health_path, health_interval)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn perform_health_check(&self, id: &str) -> Result<()> {
+        let stack = self.repo.find_by_id_internal(id).await?;
+        let health_path = match &stack.health_check_path {
+            Some(path) if !path.is_empty() => path,
+            _ => return Ok(()), // No health check configured
+        };
+
+        tracing::info!("Performing health check for stack {} on {}", id, health_path);
+
+        // Wait for containers to settle
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        if health_path.starts_with("http") {
+            let client = reqwest::Client::builder()
+                .timeout(tokio::time::Duration::from_secs(10))
+                .build()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+
+            let res = client.get(health_path).send().await.map_err(|e| {
+                AppError::Internal(format!("Health check request failed: {}", e))
+            })?;
+
+            if !res.status().is_success() {
+                return Err(AppError::Internal(format!(
+                    "Health check returned non-success status: {}",
+                    res.status()
+                )));
+            }
+        }
+
+        // For now we only support HTTP health checks.
+        // Command execution in containers would require adding `exec` to RuntimePort.
+
+        Ok(())
+    }
+
+    pub async fn save_stable_images(&self, id: &str) -> Result<()> {
+        let stack = self.repo.find_by_id_internal(id).await?;
+        let containers = self.get_stack_containers(id).await?;
+
+        let mut images = std::collections::HashMap::new();
+        for container in containers {
+            // Find the service name from labels
+            if let Some(service_name) = container.labels.get("com.docker.compose.service") {
+                images.insert(service_name.clone(), container.image.clone());
+            } else {
+                // Fallback to searching names
+                let prefix = format!("/{}-", stack.name);
+                for name in &container.names {
+                    if name.starts_with(&prefix) {
+                        let service_name = name.replacen(&prefix, "", 1);
+                        images.insert(service_name, container.image.clone());
+                    }
+                }
+            }
+        }
+
+        if !images.is_empty() {
+            let json = serde_json::to_string(&images).map_err(|e| AppError::Internal(e.to_string()))?;
+            self.repo.update_last_stable_images(id, Some(json)).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn rollback_stack(&self, id: &str, user_id: &str) -> Result<()> {
+        let stack = self.get_stack(id, user_id).await?;
+        let stable_images_json = stack.last_stable_images.ok_or_else(|| {
+            AppError::BadRequest("No stable version available for rollback".to_string())
+        })?;
+
+        let stable_images: std::collections::HashMap<String, String> =
+            serde_json::from_str(&stable_images_json).map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let compose_content = stack.compose_content.ok_or_else(|| {
+            AppError::BadRequest("Stack has no compose content".to_string())
+        })?;
+
+        self.repo.update_status(id, "rolling_back").await?;
+        let parsed = parse_compose(&compose_content)?;
+
+        for service in &parsed.services {
+            // Check if we have a stable image for this service
+            let image = match stable_images.get(&service.name) {
+                Some(img) => img,
+                None => continue, // Skip services that aren't in the stable list
+            };
+
+            let mut config = service_to_container_request(service, &stack.id, &stack.name);
+            config.image = image.clone();
+
+            // Apply env vars
+            let db_env = self
+                .environment_usecase
+                .get_env_map_for_container(id, &service.name)
+                .await
+                .unwrap_or_default();
+
+            if !db_env.is_empty() {
+                let mut merged_env = config.env.unwrap_or_default();
+                for (key, value) in &db_env {
+                    let entry = format!("{}={}", key, value);
+                    if let Some(pos) = merged_env
+                        .iter()
+                        .position(|e: &String| e.starts_with(&format!("{}=", key)))
+                    {
+                        merged_env[pos] = entry;
+                    } else {
+                        merged_env.push(entry);
+                    }
+                }
+                config.env = Some(merged_env);
+            }
+
+            // Pull stable image anyway to be sure
+            let creds = self
+                .registry_usecase
+                .get_credentials_for_image(&stack.user_id, &config.image)
+                .await?;
+            self.runtime.pull_image(&config.image, creds).await?;
+
+            let containers = self.get_stack_containers(&stack.id).await?;
+            let prefix = format!("/{}-{}", stack.name, service.name);
+            for c in containers {
+                if c.names.iter().any(|n| n == &prefix) {
+                    let _ = self.runtime.stop_container(&c.id).await;
+                    let _ = self.runtime.remove_container(&c.id, true).await;
+                }
+            }
+
+            self.runtime.create_container(config).await?;
+        }
+
+        self.start_stack(id, &stack.user_id).await?;
+        self.repo.update_status(id, "rolled_back").await?;
+        Ok(())
+    }
+
     pub async fn redeploy_service(
         &self,
         stack_id: &str,
@@ -377,6 +551,7 @@ impl StackUsecase {
                 let _ = self.runtime.remove_container(&c.id, true).await;
             }
         }
+        self.apply_resource_limits(stack_id, &service.name, &mut config).await?;
         self.runtime.create_container(config).await?;
         Ok(())
     }
@@ -461,5 +636,22 @@ impl StackUsecase {
         self.verify_container_ownership(container_id, user_id)
             .await?;
         self.runtime.get_stats(container_id).await
+    }
+
+    async fn apply_resource_limits(
+        &self,
+        stack_id: &str,
+        service_name: &str,
+        config: &mut crate::domain::runtime::ContainerConfig,
+    ) -> Result<()> {
+        if let Some(limits) = self
+            .resource_repo
+            .get_resource_limits(stack_id, service_name)
+            .await?
+        {
+            config.cpu_limit = limits.cpu_limit;
+            config.memory_limit = limits.memory_limit;
+        }
+        Ok(())
     }
 }

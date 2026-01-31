@@ -1,7 +1,8 @@
 import { browser } from "$app/environment";
 import { auth, type User } from "$lib/stores";
 
-export const API_URL = browser ? import.meta.env.PUBLIC_API_URL || "" : "";
+export const API_URL =
+  import.meta.env.PUBLIC_API_URL || "http://localhost:3000";
 
 interface ApiResponse<T> {
   data?: T;
@@ -133,6 +134,10 @@ export interface Stack {
   compose_content?: string;
   status: string;
   webhook_token?: string;
+  cron_schedule?: string;
+  health_check_path?: string;
+  health_check_interval: number;
+  last_stable_images?: string;
   container_count: number;
   created_at: string;
   updated_at: string;
@@ -213,6 +218,25 @@ export interface SetEnvVar {
   key: string;
   value: string;
   is_secret?: boolean;
+}
+
+export interface ContainerResource {
+  id: string;
+  stack_id: string;
+  service_name: string;
+  cpu_limit?: number;
+  memory_limit?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceMetric {
+  id: string;
+  container_id: string;
+  stack_id: string;
+  cpu_usage: number;
+  memory_usage: number;
+  timestamp: string;
 }
 
 export const api = {
@@ -396,6 +420,26 @@ export const api = {
       });
     },
 
+    updateAutomation: async (
+      id: string,
+      data: {
+        cron_schedule?: string;
+        health_check_path?: string;
+        health_check_interval: number;
+      },
+    ) => {
+      return fetchApi<{ status: string }>(`/stacks/${id}/automation`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+
+    rollback: async (id: string) => {
+      return fetchApi<{ status: string }>(`/stacks/${id}/rollback`, {
+        method: "POST",
+      });
+    },
+
     deploymentLogs: async (id: string) => {
       return fetchApi<DeploymentLog[]>(`/stacks/${id}/deployments`);
     },
@@ -472,6 +516,32 @@ export const api = {
           {
             method: "DELETE",
           },
+        );
+      },
+    },
+
+    resources: {
+      getLimits: async (stackId: string) => {
+        return fetchApi<ContainerResource[]>(`/stacks/${stackId}/limits`);
+      },
+
+      updateLimits: async (
+        stackId: string,
+        serviceName: string,
+        data: { cpu_limit?: number; memory_limit?: number },
+      ) => {
+        return fetchApi<{ status: string }>(
+          `/stacks/${stackId}/services/${serviceName}/limits`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+          },
+        );
+      },
+
+      getMetrics: async (stackId: string, range = "1h") => {
+        return fetchApi<ResourceMetric[]>(
+          `/stacks/${stackId}/metrics?range=${range}`,
         );
       },
     },

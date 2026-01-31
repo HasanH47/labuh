@@ -139,6 +139,40 @@ async fn redeploy_stack(
     Ok(Json(serde_json::json!({ "status": "redeployed" })))
 }
 
+async fn rollback_stack(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let _: () = usecase.rollback_stack(&id, &current_user.id).await?;
+    Ok(Json(serde_json::json!({ "status": "rolled_back" })))
+}
+
+#[derive(serde::Deserialize)]
+struct UpdateStackAutomation {
+    cron_schedule: Option<String>,
+    health_check_path: Option<String>,
+    health_check_interval: i32,
+}
+
+async fn update_stack_automation(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path(id): Path<String>,
+    Json(request): Json<UpdateStackAutomation>,
+) -> Result<Json<serde_json::Value>> {
+    let _: () = usecase
+        .update_automation(
+            &id,
+            &current_user.id,
+            request.cron_schedule,
+            request.health_check_path,
+            request.health_check_interval,
+        )
+        .await?;
+    Ok(Json(serde_json::json!({ "status": "updated" })))
+}
+
 async fn redeploy_service(
     State(usecase): State<Arc<StackUsecase>>,
     Extension(current_user): Extension<CurrentUser>,
@@ -168,5 +202,7 @@ pub fn stack_routes(usecase: Arc<StackUsecase>) -> Router {
         )
         .route("/{id}/compose", axum::routing::put(update_stack_compose))
         .route("/{id}/webhook/regenerate", post(regenerate_webhook_token))
+        .route("/{id}/automation", axum::routing::put(update_stack_automation))
+        .route("/{id}/rollback", post(rollback_stack))
         .with_state(usecase)
 }

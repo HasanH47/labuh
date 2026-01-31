@@ -1,5 +1,8 @@
 pub mod deployment_log;
 pub mod environment;
+pub mod metrics_collector;
 pub mod registry;
+pub mod resource;
+pub mod scheduler;
 pub mod stack;
 pub mod system;

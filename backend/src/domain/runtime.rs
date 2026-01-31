@@ -33,6 +33,8 @@ pub struct ContainerConfig {
     pub ports: Option<Vec<String>>,
     pub volumes: Option<Vec<String>>,
     pub labels: Option<std::collections::HashMap<String, String>>,
+    pub cpu_limit: Option<f64>,
+    pub memory_limit: Option<i64>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

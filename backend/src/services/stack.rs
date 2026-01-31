@@ -69,12 +69,16 @@ impl StackService {
             status: "created".to_string(),
             webhook_token: Some(webhook_token),
             user_id: user_id.to_string(),
+            cron_schedule: None,
+            health_check_path: None,
+            health_check_interval: 30,
+            last_stable_images: None,
             created_at: now.clone(),
             updated_at: now,
         };
 
         sqlx::query(
-            "INSERT INTO stacks (id, name, compose_content, status, webhook_token, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO stacks (id, name, compose_content, status, webhook_token, user_id, cron_schedule, health_check_path, health_check_interval, last_stable_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&stack.id)
         .bind(&stack.name)
@@ -82,6 +86,10 @@ impl StackService {
         .bind(&stack.status)
         .bind(&stack.webhook_token)
         .bind(&stack.user_id)
+        .bind(&stack.cron_schedule)
+        .bind(&stack.health_check_path)
+        .bind(&stack.health_check_interval)
+        .bind(&stack.last_stable_images)
         .bind(&stack.created_at)
         .bind(&stack.updated_at)
         .execute(&self.db)

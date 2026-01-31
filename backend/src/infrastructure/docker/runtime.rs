@@ -114,6 +114,8 @@ impl RuntimePort for DockerRuntimeAdapter {
                 Some(port_bindings)
             },
             binds,
+            memory: config.memory_limit,
+            nano_cpus: config.cpu_limit.map(|c| (c * 1e9) as i64),
             ..Default::default()
         };
 

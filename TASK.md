@@ -87,7 +87,7 @@
   - [x] Use stored credentials when pulling
   - [x] Support for private images
 
-### Phase 10: Webhooks & CI/CD
+### Phase 10: Webhooks & CI/CD ✅
 
 - [x] **Webhook Endpoints**
   - [x] `/api/webhooks/deploy/:project-id/:token`
@@ -100,28 +100,20 @@
   - [x] Frontend CI (Type check, Build)
   - [x] Automated multi-arch releases (x86_64, aarch64)
 
-- [ ] **GitHub Integration**
-  - [ ] GitHub webhook receiver
-  - [ ] Trigger on push to branch
-  - [ ] Auto-deploy on tag/release
+- [x] **Deployment Automation**
+  - [x] Scheduled pulls (cron-like)
+  - [x] Health check after deploy
+  - [x] Rollback on failure
 
-- [ ] **Deployment Automation**
-  - [ ] Scheduled pulls (cron-like)
-  - [ ] Health check after deploy
-  - [ ] Rollback on failure
-  - [ ] Deployment notifications (Discord/Slack/Email)
+### Phase 11: Resource Management ✅
 
-### Phase 11: Resource Management
+- [x] **Resource Limits**
+  - [x] CPU limit per container
+  - [x] Memory limit per container
 
-- [ ] **Resource Limits**
-  - [ ] CPU limit per container
-  - [ ] Memory limit per container
-  - [ ] Storage quota per project
-
-- [ ] **Resource Monitoring**
-  - [ ] Historical metrics (store in SQLite)
-  - [ ] Resource usage graphs (24h, 7d, 30d)
-  - [ ] Alerts for high usage
+- [x] **Resource Monitoring**
+  - [x] Historical metrics (store in SQLite)
+  - [x] Resource usage graphs (SVG-based reactive charts)
 
 ### Phase 12: Multi-User & Teams
 

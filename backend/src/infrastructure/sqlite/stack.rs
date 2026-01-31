@@ -17,6 +17,14 @@ impl SqliteStackRepository {
 
 #[async_trait]
 impl StackRepository for SqliteStackRepository {
+    async fn list_all(&self) -> Result<Vec<Stack>> {
+        let stacks = sqlx::query_as::<_, Stack>("SELECT * FROM stacks ORDER BY created_at DESC")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(stacks)
+    }
+
     async fn list_by_user(&self, user_id: &str) -> Result<Vec<Stack>> {
         let stacks = sqlx::query_as::<_, Stack>(
             "SELECT * FROM stacks WHERE user_id = ? ORDER BY created_at DESC",
@@ -51,7 +59,7 @@ impl StackRepository for SqliteStackRepository {
 
     async fn create(&self, stack: Stack) -> Result<Stack> {
         sqlx::query(
-            "INSERT INTO stacks (id, name, user_id, compose_content, status, webhook_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO stacks (id, name, user_id, compose_content, status, webhook_token, cron_schedule, health_check_path, health_check_interval, last_stable_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&stack.id)
         .bind(&stack.name)
@@ -59,6 +67,10 @@ impl StackRepository for SqliteStackRepository {
         .bind(&stack.compose_content)
         .bind(&stack.status)
         .bind(&stack.webhook_token)
+        .bind(&stack.cron_schedule)
+        .bind(&stack.health_check_path)
+        .bind(&stack.health_check_interval)
+        .bind(&stack.last_stable_images)
         .bind(&stack.created_at)
         .bind(&stack.updated_at)
         .execute(&self.pool)
@@ -92,6 +104,36 @@ impl StackRepository for SqliteStackRepository {
     async fn update_webhook_token(&self, id: &str, token: &str) -> Result<()> {
         sqlx::query("UPDATE stacks SET webhook_token = ?, updated_at = ? WHERE id = ?")
             .bind(token)
+            .bind(Utc::now().to_rfc3339())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn update_automation(
+        &self,
+        id: &str,
+        cron: Option<String>,
+        health_path: Option<String>,
+        health_interval: i32,
+    ) -> Result<()> {
+        sqlx::query("UPDATE stacks SET cron_schedule = ?, health_check_path = ?, health_check_interval = ?, updated_at = ? WHERE id = ?")
+            .bind(cron)
+            .bind(health_path)
+            .bind(health_interval)
+            .bind(Utc::now().to_rfc3339())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn update_last_stable_images(&self, id: &str, images: Option<String>) -> Result<()> {
+        sqlx::query("UPDATE stacks SET last_stable_images = ?, updated_at = ? WHERE id = ?")
+            .bind(images)
             .bind(Utc::now().to_rfc3339())
             .bind(id)
             .execute(&self.pool)

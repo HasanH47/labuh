@@ -317,6 +317,8 @@ pub fn service_to_container_request(
         ports,
         volumes,
         labels: Some(labels),
+        cpu_limit: None,
+        memory_limit: None,
     }
 }
 
