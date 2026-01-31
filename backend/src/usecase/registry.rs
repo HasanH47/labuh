@@ -17,7 +17,7 @@ impl RegistryUsecase {
         Self { repo }
     }
 
-    pub async fn list_credentials(&self, team_id: &str, user_id: &str) -> Result<Vec<RegistryCredentialResponse>> {
+    pub async fn list_credentials(&self, team_id: &str, _user_id: &str) -> Result<Vec<RegistryCredentialResponse>> {
         // TODO: Pass team_repo to check membership if needed,
         // but for now we assume the caller verified permission or we'll add it.
         let creds = self.repo.list_by_team(team_id).await?;

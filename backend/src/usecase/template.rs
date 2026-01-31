@@ -1,13 +1,56 @@
 use crate::domain::models::template::{Template, TemplateEnv, TemplateResponse};
+use crate::domain::TemplateRepository;
 use crate::error::{AppError, Result};
+use std::sync::Arc;
 
 pub struct TemplateUsecase {
-    templates: Vec<Template>,
+    repo: Arc<dyn TemplateRepository>,
 }
 
 impl TemplateUsecase {
-    pub fn new() -> Self {
-        let templates = vec![
+    pub fn new(repo: Arc<dyn TemplateRepository>) -> Self {
+        Self { repo }
+    }
+
+    pub async fn list_templates(&self) -> Result<Vec<TemplateResponse>> {
+        let templates = self.repo.list_all().await?;
+        Ok(templates.into_iter().map(TemplateResponse::from).collect())
+    }
+
+    pub async fn get_template(&self, id: &str) -> Result<Template> {
+        self.repo.find_by_id(id).await?
+            .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))
+    }
+
+    pub async fn create_template(&self, template: Template) -> Result<()> {
+        self.repo.save(&template).await
+    }
+
+    pub async fn import_from_url(&self, url: &str) -> Result<Template> {
+        let client = reqwest::Client::new();
+        let template: Template = client.get(url)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to fetch template from URL: {}", e)))?
+            .json()
+            .await
+            .map_err(|e| AppError::BadRequest(format!("Failed to parse template JSON: {}", e)))?;
+
+        self.repo.save(&template).await?;
+        Ok(template)
+    }
+
+    pub async fn delete_template(&self, id: &str) -> Result<()> {
+        self.repo.delete(id).await
+    }
+
+    pub async fn seed_default_templates(&self) -> Result<()> {
+        let count = self.repo.count().await?;
+        if count > 0 {
+            return Ok(());
+        }
+
+        let defaults = vec![
             Template {
                 id: "wordpress".to_string(),
                 name: "WordPress".to_string(),
@@ -87,18 +130,10 @@ services:
             },
         ];
 
-        Self { templates }
-    }
+        for t in defaults {
+            self.repo.save(&t).await?;
+        }
 
-    pub async fn list_templates(&self) -> Result<Vec<TemplateResponse>> {
-        Ok(self.templates.iter().cloned().map(TemplateResponse::from).collect())
-    }
-
-    pub async fn get_template(&self, id: &str) -> Result<Template> {
-        self.templates
-            .iter()
-            .find(|t| t.id == id)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("Template {} not found", id)))
+        Ok(())
     }
 }

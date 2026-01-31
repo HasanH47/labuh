@@ -70,7 +70,7 @@ impl StackRepository for SqliteStackRepository {
         .bind(&stack.webhook_token)
         .bind(&stack.cron_schedule)
         .bind(&stack.health_check_path)
-        .bind(&stack.health_check_interval)
+        .bind(stack.health_check_interval)
         .bind(&stack.last_stable_images)
         .bind(&stack.git_url)
         .bind(&stack.git_branch)

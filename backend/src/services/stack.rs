@@ -93,7 +93,7 @@ impl StackService {
         .bind(&stack.team_id)
         .bind(&stack.cron_schedule)
         .bind(&stack.health_check_path)
-        .bind(&stack.health_check_interval)
+        .bind(stack.health_check_interval)
         .bind(&stack.last_stable_images)
         .bind(&stack.created_at)
         .bind(&stack.updated_at)

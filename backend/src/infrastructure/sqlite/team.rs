@@ -18,14 +18,6 @@ impl SqliteTeamRepository {
 
 #[async_trait]
 impl TeamRepository for SqliteTeamRepository {
-    async fn find_by_id(&self, id: &str) -> Result<Option<Team>> {
-        let team = sqlx::query_as::<_, Team>("SELECT * FROM teams WHERE id = ?")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await?;
-        Ok(team)
-    }
-
     async fn find_by_user_id(&self, user_id: &str) -> Result<Vec<Team>> {
         let teams = sqlx::query_as::<_, Team>(
             r#"
@@ -113,10 +105,24 @@ impl TeamRepository for SqliteTeamRepository {
     }
 
     async fn get_members(&self, team_id: &str) -> Result<Vec<TeamMember>> {
-        let members = sqlx::query_as::<_, TeamMember>("SELECT * FROM team_members WHERE team_id = ?")
-            .bind(team_id)
-            .fetch_all(&self.pool)
-            .await?;
+        let members = sqlx::query_as::<_, TeamMember>(
+            r#"
+            SELECT
+                tm.team_id,
+                tm.user_id,
+                u.name as user_name,
+                u.email as user_email,
+                tm.role,
+                tm.created_at,
+                tm.updated_at
+            FROM team_members tm
+            JOIN users u ON tm.user_id = u.id
+            WHERE tm.team_id = ?
+            "#,
+        )
+        .bind(team_id)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(members)
     }
 

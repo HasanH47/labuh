@@ -726,5 +726,25 @@ export const api = {
     get: async (id: string) => {
       return fetchApi<Template>(`/templates/${id}`);
     },
+
+    create: async (template: Template) => {
+      return fetchApi<void>("/templates", {
+        method: "POST",
+        body: JSON.stringify(template),
+      });
+    },
+
+    import: async (url: string) => {
+      return fetchApi<Template>("/templates/import", {
+        method: "POST",
+        body: JSON.stringify({ url }),
+      });
+    },
+
+    delete: async (id: string) => {
+      return fetchApi<void>(`/templates/${id}`, {
+        method: "DELETE",
+      });
+    },
   },
 };

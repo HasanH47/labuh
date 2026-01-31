@@ -167,7 +167,19 @@ async fn main() -> anyhow::Result<()> {
             crate::infrastructure::sqlite::team::SqliteTeamRepository::new(pool.clone()),
         );
         let team_usecase = Arc::new(crate::usecase::team::TeamUsecase::new(team_repo.clone()));
-        let template_usecase = Arc::new(crate::usecase::template::TemplateUsecase::new());
+        // Create template components
+        let template_repo = Arc::new(
+            crate::infrastructure::sqlite::template::SqliteTemplateRepository::new(pool.clone()),
+        );
+        let template_usecase = Arc::new(crate::usecase::template::TemplateUsecase::new(template_repo));
+
+        // Seed templates
+        let ts_clone = template_usecase.clone();
+        tokio::spawn(async move {
+            if let Err(e) = ts_clone.seed_default_templates().await {
+                tracing::error!("Failed to seed default templates: {}", e);
+            }
+        });
 
         // Create resource components (New Phase 11)
         let resource_repo = Arc::new(

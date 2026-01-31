@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Team {
@@ -18,14 +19,15 @@ pub enum TeamRole {
     Viewer,
 }
 
-impl ToString for TeamRole {
-    fn to_string(&self) -> String {
-        match self {
-            TeamRole::Owner => "OWNER".to_string(),
-            TeamRole::Admin => "ADMIN".to_string(),
-            TeamRole::Developer => "DEVELOPER".to_string(),
-            TeamRole::Viewer => "VIEWER".to_string(),
-        }
+impl fmt::Display for TeamRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            TeamRole::Owner => "OWNER",
+            TeamRole::Admin => "ADMIN",
+            TeamRole::Developer => "DEVELOPER",
+            TeamRole::Viewer => "VIEWER",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -45,7 +47,9 @@ impl From<String> for TeamRole {
 pub struct TeamMember {
     pub team_id: String,
     pub user_id: String,
-    pub role: String, // Stored as String for SQLx, converted to TeamRole in logic
+    pub user_name: Option<String>,
+    pub user_email: String,
+    pub role: String,
     pub created_at: String,
     pub updated_at: String,
 }

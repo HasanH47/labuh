@@ -4,7 +4,6 @@ use crate::error::Result;
 
 #[async_trait]
 pub trait TeamRepository: Send + Sync {
-    async fn find_by_id(&self, id: &str) -> Result<Option<Team>>;
     async fn find_by_user_id(&self, user_id: &str) -> Result<Vec<Team>>;
     async fn save(&self, team: &Team) -> Result<()>;
     async fn delete(&self, id: &str) -> Result<()>;

@@ -4,3 +4,4 @@ pub mod registry;
 pub mod resource;
 pub mod stack;
 pub mod team;
+pub mod template;

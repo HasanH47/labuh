@@ -11,8 +11,9 @@ use crate::usecase::template::TemplateUsecase;
 
 pub fn template_routes(usecase: Arc<TemplateUsecase>) -> Router {
     Router::new()
-        .route("/", get(list_templates))
-        .route("/{id}", get(get_template))
+        .route("/", get(list_templates).post(create_template))
+        .route("/import", axum::routing::post(import_template))
+        .route("/{id}", get(get_template).delete(delete_template))
         .with_state(usecase)
 }
 
@@ -29,4 +30,33 @@ async fn get_template(
 ) -> Result<Json<Template>> {
     let template = usecase.get_template(&id).await?;
     Ok(Json(template))
+}
+
+async fn create_template(
+    State(usecase): State<Arc<TemplateUsecase>>,
+    Json(template): Json<Template>,
+) -> Result<Json<()>> {
+    usecase.create_template(template).await?;
+    Ok(Json(()))
+}
+
+#[derive(serde::Deserialize)]
+struct ImportTemplateRequest {
+    url: String,
+}
+
+async fn import_template(
+    State(usecase): State<Arc<TemplateUsecase>>,
+    Json(payload): Json<ImportTemplateRequest>,
+) -> Result<Json<Template>> {
+    let template = usecase.import_from_url(&payload.url).await?;
+    Ok(Json(template))
+}
+
+async fn delete_template(
+    State(usecase): State<Arc<TemplateUsecase>>,
+    Path(id): Path<String>,
+) -> Result<Json<()>> {
+    usecase.delete_template(&id).await?;
+    Ok(Json(()))
 }

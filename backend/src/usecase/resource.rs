@@ -76,9 +76,4 @@ impl ResourceUsecase {
         let since = (Utc::now() - duration).to_rfc3339();
         self.repo.get_metrics_for_stack(stack_id, &since).await
     }
-
-    pub async fn prune_old_metrics(&self) -> Result<()> {
-        let older_than = (Utc::now() - Duration::days(30)).to_rfc3339();
-        self.repo.prune_metrics(&older_than).await
-    }
 }
