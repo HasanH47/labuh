@@ -183,6 +183,20 @@
   - [x] Resolve all TypeScript errors (svelte-check)
   - [x] Verify production build and reactivity stability
 
+### Phase 20: Docker Swarm & Multi-Node Support (Planned)
+
+- [ ] **Swarm Orchestration**
+  - [ ] Initialize/Join Swarm cluster UI
+  - [ ] Node management (List, Promote, Demote, Remove)
+  - [ ] Node health and resource monitoring
+- [ ] **Swarm Services**
+  - [ ] Support `docker stack deploy` equivalent via `bollard`
+  - [ ] Manage Swarm Services (Service mode: Replicated vs Global)
+  - [ ] Zero-downtime rolling updates support
+- [ ] **Advanced Networking**
+  - [ ] Multi-node Overlay networks
+  - [ ] Service Mesh / Ingress integration
+
 ---
 
 ## 🏗️ Architecture Migration ✅
