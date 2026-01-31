@@ -129,20 +129,35 @@
 
 ### Phase 13: Advanced Features
 
-- [ ] **Templates**
-  - [ ] Pre-built app templates (WordPress, Ghost, etc)
-  - [ ] One-click deploy from template
-  - [ ] Community templates
+### Phase 13: Advanced Features ✅
 
-- [ ] **Backup & Restore**
-  - [ ] Container data backup
-  - [ ] Volume backup
-  - [ ] Scheduled backups
+- [x] **Dynamic Templates**
+  - [x] Pre-built app templates (WordPress, Ghost, Redis)
+  - [x] Database-backed template registry
+  - [x] Import templates via JSON or URL
+  - [x] One-click deploy from gallery
 
-- [ ] **Git Integration**
-  - [ ] Clone repo and build with Dockerfile
+- [x] **Stack Backup & Restore**
+  - [x] Export stack metadata and compose as JSON
+  - [x] Portable backup files
+  - [x] One-click restore to any team
+
+- [/] **Git Integration**
+  - [x] Clone and deploy from public Git repositories
+  - [x] Support for custom branches
+  - [x] Git sync & redeploy functionality
+  - [ ] Build from Dockerfile (coming soon)
   - [ ] Build logs streaming
-  - [ ] Auto-rebuild on push
+
+### Phase 14: Maintenance & Code Cleanup ✅
+
+- [x] **System Stability**
+  - [x] Periodic resource metrics pruning (30 days)
+  - [x] Strict Clippy linting enforcement
+  - [x] Zero-warning backend compilation
+- [x] **Team Management**
+  - [x] Complete member role management
+  - [x] Team deletion logic
 
 ---
 
