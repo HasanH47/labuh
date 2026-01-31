@@ -2,12 +2,13 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { api, type Container } from '$lib/api';
+	import { activeTeam, auth } from '$lib/stores';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { Container as ContainerIcon, Play, Square, RotateCcw, Trash2, Plus, X, Eye, EyeOff } from '@lucide/svelte';
+	import { Container as ContainerIcon, Play, Square, RotateCcw, Trash2, Plus, X, Eye, EyeOff, Users } from '@lucide/svelte';
 
 	let containers = $state<Container[]>([]);
 	let loading = $state(true);
@@ -24,8 +25,14 @@
 	let showEnvImport = $state(false);
 
 	async function loadContainers() {
+		if (!$activeTeam?.team) {
+			containers = [];
+			loading = false;
+			return;
+		}
 		loading = true;
-		const result = await api.containers.list(true);
+		// Passing team_id to filter containers by team on the backend (needs backend support)
+		const result = await api.containers.list(true, $activeTeam.team.id);
 		if (result.data) {
 			containers = result.data;
 		}
@@ -33,6 +40,14 @@
 	}
 
 	onMount(loadContainers);
+
+	$effect(() => {
+		if ($activeTeam) {
+			loadContainers();
+		}
+	});
+
+	const isViewer = $derived($activeTeam?.role === 'Viewer');
 
 	function addEnvVar() {
 		newContainer.envVars = [...newContainer.envVars, { key: '', value: '', masked: false }];
@@ -167,13 +182,28 @@
 			<h2 class="text-2xl font-bold tracking-tight">Containers</h2>
 			<p class="text-muted-foreground">Manage your running containers</p>
 		</div>
-		<Button class="gap-2" onclick={() => showCreateDialog = true}>
+		<Button
+			class="gap-2"
+			onclick={() => showCreateDialog = true}
+			disabled={!$activeTeam?.team || isViewer}
+		>
 			<Plus class="h-4 w-4" />
 			Create Container
 		</Button>
 	</div>
 
-	{#if loading}
+	{#if !$activeTeam?.team}
+		<Card.Root>
+			<Card.Content class="flex flex-col items-center justify-center py-16 text-center">
+				<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+				<h3 class="text-lg font-semibold">No team selected</h3>
+				<p class="mb-4 text-sm text-muted-foreground">
+					Please select or create a team to see containers.
+				</p>
+				<Button href="/dashboard/teams">Go to Teams</Button>
+			</Card.Content>
+		</Card.Root>
+	{:else if loading}
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
@@ -202,21 +232,25 @@
 							</a>
 						</div>
 						<div class="flex items-center gap-2">
-							{#if container.state !== 'running'}
-								<Button variant="outline" size="icon" onclick={() => startContainer(container.id)} disabled={actionLoading === container.id}>
-									<Play class="h-4 w-4" />
+							{#if !isViewer}
+								{#if container.state !== 'running'}
+									<Button variant="outline" size="icon" onclick={() => startContainer(container.id)} disabled={actionLoading === container.id}>
+										<Play class="h-4 w-4" />
+									</Button>
+								{:else}
+									<Button variant="outline" size="icon" onclick={() => stopContainer(container.id)} disabled={actionLoading === container.id}>
+										<Square class="h-4 w-4" />
+									</Button>
+								{/if}
+								<Button variant="outline" size="icon" onclick={() => restartContainer(container.id)} disabled={actionLoading === container.id}>
+									<RotateCcw class="h-4 w-4" />
+								</Button>
+								<Button variant="outline" size="icon" onclick={() => removeContainer(container.id)} disabled={actionLoading === container.id}>
+									<Trash2 class="h-4 w-4 text-destructive" />
 								</Button>
 							{:else}
-								<Button variant="outline" size="icon" onclick={() => stopContainer(container.id)} disabled={actionLoading === container.id}>
-									<Square class="h-4 w-4" />
-								</Button>
+								<span class="text-xs text-muted-foreground italic px-2">Read Only</span>
 							{/if}
-							<Button variant="outline" size="icon" onclick={() => restartContainer(container.id)} disabled={actionLoading === container.id}>
-								<RotateCcw class="h-4 w-4" />
-							</Button>
-							<Button variant="outline" size="icon" onclick={() => removeContainer(container.id)} disabled={actionLoading === container.id}>
-								<Trash2 class="h-4 w-4 text-destructive" />
-							</Button>
 						</div>
 					</Card.Content>
 				</Card.Root>

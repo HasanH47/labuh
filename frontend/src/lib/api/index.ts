@@ -127,10 +127,35 @@ export interface SystemStats {
   load_average: { one: number; five: number; fifteen: number };
 }
 
+export type TeamRole = "Owner" | "Admin" | "Developer" | "Viewer";
+
+export interface Team {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMember {
+  team_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  role: TeamRole;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamResponse {
+  team: Team;
+  role: TeamRole;
+}
+
 export interface Stack {
   id: string;
   name: string;
   user_id: string;
+  team_id: string;
   compose_content?: string;
   status: string;
   webhook_token?: string;
@@ -145,6 +170,7 @@ export interface Stack {
 
 export interface CreateStack {
   name: string;
+  team_id: string;
   compose_content: string;
 }
 
@@ -167,6 +193,8 @@ export interface CreateDomain {
 
 export interface RegistryCredential {
   id: string;
+  user_id: string;
+  team_id: string;
   name: string;
   registry_url: string;
   username: string;
@@ -176,6 +204,7 @@ export interface RegistryCredential {
 
 export interface CreateRegistryCredential {
   name: string;
+  team_id: string;
   registry_url: string;
   username: string;
   password: string;
@@ -285,8 +314,10 @@ export const api = {
   },
 
   containers: {
-    list: async (all = false) => {
-      return fetchApi<Container[]>(`/containers?all=${all}`);
+    list: async (all = false, teamId?: string) => {
+      const query = new URLSearchParams({ all: all.toString() });
+      if (teamId) query.append("team_id", teamId);
+      return fetchApi<Container[]>(`/containers?${query.toString()}`);
     },
 
     create: async (data: {
@@ -346,10 +377,10 @@ export const api = {
       );
     },
 
-    pull: async (image: string) => {
+    pull: async (image: string, teamId: string) => {
       return fetchApi<{ status: string; image: string }>("/images/pull", {
         method: "POST",
-        body: JSON.stringify({ image }),
+        body: JSON.stringify({ image, team_id: teamId }),
       });
     },
 
@@ -361,8 +392,8 @@ export const api = {
   },
 
   stacks: {
-    list: async () => {
-      return fetchApi<Stack[]>("/stacks");
+    list: async (teamId: string) => {
+      return fetchApi<Stack[]>(`/stacks?team_id=${teamId}`);
     },
 
     get: async (id: string) => {
@@ -548,8 +579,8 @@ export const api = {
   },
 
   registries: {
-    list: async () => {
-      return fetchApi<RegistryCredential[]>("/registries");
+    list: async (teamId: string) => {
+      return fetchApi<RegistryCredential[]>(`/registries?team_id=${teamId}`);
     },
 
     add: async (data: CreateRegistryCredential) => {
@@ -559,10 +590,61 @@ export const api = {
       });
     },
 
-    remove: async (id: string) => {
-      return fetchApi<{ status: string }>(`/registries/${id}`, {
+    remove: async (id: string, teamId: string) => {
+      return fetchApi<{ status: string }>(`/registries/${teamId}/${id}`, {
         method: "DELETE",
       });
+    },
+  },
+
+  teams: {
+    list: async () => {
+      return fetchApi<TeamResponse[]>("/teams");
+    },
+
+    create: async (name: string) => {
+      return fetchApi<Team>("/teams", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+    },
+
+    listMembers: async (teamId: string) => {
+      return fetchApi<TeamMember[]>(`/teams/${teamId}/members`);
+    },
+
+    addMember: async (
+      teamId: string,
+      email: string,
+      role: TeamRole = "Developer",
+    ) => {
+      return fetchApi<{ status: string }>(`/teams/${teamId}/members`, {
+        method: "POST",
+        body: JSON.stringify({ email, role }),
+      });
+    },
+
+    removeMember: async (teamId: string, userId: string) => {
+      return fetchApi<{ status: string }>(
+        `/teams/${teamId}/members/${userId}`,
+        {
+          method: "DELETE",
+        },
+      );
+    },
+
+    updateMemberRole: async (
+      teamId: string,
+      userId: string,
+      role: TeamRole,
+    ) => {
+      return fetchApi<{ status: string }>(
+        `/teams/${teamId}/members/${userId}/role`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ role }),
+        },
+      );
     },
   },
 };

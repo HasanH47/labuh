@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, type Container } from '$lib/api';
+	import { activeTeam } from '$lib/stores';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Terminal, Search, Download, RefreshCw } from '@lucide/svelte';
+	import { Terminal, Search, Download, RefreshCw, Users } from '@lucide/svelte';
 
 	let containers = $state<Container[]>([]);
 	let selectedContainer = $state<string | null>(null);
@@ -14,7 +15,13 @@
 	let searchQuery = $state('');
 
 	async function loadContainers() {
-		const result = await api.containers.list(true);
+		if (!$activeTeam?.team) {
+			containers = [];
+			loading = false;
+			return;
+		}
+		loading = true;
+		const result = await api.containers.list(true, $activeTeam.team.id);
 		if (result.data) {
 			containers = result.data;
 			if (containers.length > 0 && !selectedContainer) {
@@ -76,6 +83,15 @@
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
+	{:else if !$activeTeam?.team}
+		<Card.Root>
+			<Card.Content class="flex flex-col items-center justify-center py-16 text-center">
+				<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+				<h3 class="text-lg font-semibold">No team selected</h3>
+				<p class="mb-4 text-sm text-muted-foreground">Please select a team to view container logs.</p>
+				<Button href="/dashboard/teams">Go to Teams</Button>
+			</Card.Content>
+		</Card.Root>
 	{:else if containers.length === 0}
 		<Card.Root>
 			<Card.Content class="flex flex-col items-center justify-center py-16 text-center">

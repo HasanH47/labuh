@@ -6,6 +6,7 @@ pub struct Stack {
     pub id: String,
     pub name: String,
     pub user_id: String,
+    pub team_id: String,
     pub compose_content: Option<String>,
     pub status: String,
     pub webhook_token: Option<String>,
@@ -20,6 +21,7 @@ pub struct Stack {
 #[derive(Debug, Deserialize)]
 pub struct CreateStack {
     pub name: String,
+    pub team_id: String,
     pub compose_content: String,
 }
 
@@ -28,6 +30,7 @@ pub struct StackResponse {
     pub id: String,
     pub name: String,
     pub user_id: String,
+    pub team_id: String,
     pub compose_content: Option<String>,
     pub status: String,
     pub webhook_token: Option<String>,
@@ -46,6 +49,7 @@ impl From<Stack> for StackResponse {
             id: s.id,
             name: s.name,
             user_id: s.user_id,
+            team_id: s.team_id,
             compose_content: s.compose_content,
             status: s.status,
             webhook_token: s.webhook_token,

@@ -20,6 +20,7 @@ use crate::api::rest::auth::protected_auth_routes;
 use crate::api::rest::{
     auth_routes, container_routes, deployment_log_routes, domain_routes, environment_routes,
     health_routes, image_routes, registry_routes, resource_routes, stack_routes, system_routes,
+    team_routes,
 };
 use crate::config::Config;
 use crate::services::{
@@ -161,6 +162,12 @@ async fn main() -> anyhow::Result<()> {
         let runtime_adapter =
             Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
 
+        // Create team components (New Phase 12)
+        let team_repo = Arc::new(
+            crate::infrastructure::sqlite::team::SqliteTeamRepository::new(pool.clone()),
+        );
+        let team_usecase = Arc::new(crate::usecase::team::TeamUsecase::new(team_repo.clone()));
+
         // Create resource components (New Phase 11)
         let resource_repo = Arc::new(
             crate::infrastructure::sqlite::resource::SqliteResourceRepository::new(pool.clone()),
@@ -168,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
         let resource_usecase = Arc::new(crate::usecase::resource::ResourceUsecase::new(
             resource_repo.clone(),
             stack_repo.clone(),
+            team_repo.clone(),
         ));
 
         let metrics_collector = Arc::new(crate::usecase::metrics_collector::MetricsCollector::new(
@@ -185,6 +193,7 @@ async fn main() -> anyhow::Result<()> {
             env_usecase.clone(),
             registry_usecase.clone(),
             resource_repo.clone(),
+            team_repo.clone(),
         ));
 
         // Start Automation Scheduler
@@ -218,6 +227,7 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(crate::services::DeploymentLogService::new(pool.clone()));
 
         protected_routes = protected_routes
+            .nest("/teams", team_routes(team_usecase.clone()))
             .nest("/registries", registry_routes(registry_usecase.clone()))
             .nest("/containers", container_routes(stack_usecase.clone()))
             .nest(
@@ -225,7 +235,7 @@ async fn main() -> anyhow::Result<()> {
                 image_routes(container_svc.clone(), registry_usecase.clone()),
             )
             .nest("/stacks", stack_routes(stack_usecase.clone()))
-            .nest("/stacks", domain_routes(domain_service))
+            .nest("/stacks", domain_routes(domain_service, stack_usecase.clone()))
             .nest(
                 "/stacks",
                 deployment_log_routes(log_usecase.clone(), stack_usecase.clone()),

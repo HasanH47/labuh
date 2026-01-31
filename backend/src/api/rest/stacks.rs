@@ -10,12 +10,28 @@ use crate::domain::models::{CreateStack, StackHealth, StackLogEntry, StackRespon
 use crate::error::Result;
 use crate::usecase::stack::StackUsecase;
 
+#[derive(serde::Deserialize)]
+pub struct ListStacksQuery {
+    pub team_id: Option<String>,
+}
+
 async fn list_stacks(
     State(usecase): State<Arc<StackUsecase>>,
     Extension(current_user): Extension<CurrentUser>,
+    Query(query): Query<ListStacksQuery>,
 ) -> Result<Json<Vec<StackResponse>>> {
     let stacks: Vec<crate::domain::models::Stack> = usecase.list_stacks(&current_user.id).await?;
-    let responses: Vec<StackResponse> = stacks.into_iter().map(StackResponse::from).collect();
+    let responses: Vec<StackResponse> = stacks
+        .into_iter()
+        .filter(|s| {
+            if let Some(ref team_id) = query.team_id {
+                s.team_id == *team_id
+            } else {
+                true
+            }
+        })
+        .map(StackResponse::from)
+        .collect();
     Ok(Json(responses))
 }
 
@@ -34,7 +50,7 @@ async fn create_stack(
     Json(request): Json<CreateStack>,
 ) -> Result<Json<StackResponse>> {
     let stack: crate::domain::models::Stack = usecase
-        .create_stack(&request.name, &request.compose_content, &current_user.id)
+        .create_stack(&request.name, &request.compose_content, &current_user.id, &request.team_id)
         .await?;
     Ok(Json(stack.into()))
 }

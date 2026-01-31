@@ -13,12 +13,15 @@ use crate::usecase::environment::EnvironmentUsecase;
 use crate::usecase::registry::RegistryUsecase;
 use crate::domain::resource_repository::ResourceRepository;
 
+use crate::domain::TeamRepository;
+
 pub struct StackUsecase {
     repo: Arc<dyn StackRepository>,
     runtime: Arc<dyn RuntimePort>,
     environment_usecase: Arc<EnvironmentUsecase>,
     registry_usecase: Arc<RegistryUsecase>,
     resource_repo: Arc<dyn ResourceRepository>,
+    team_repo: Arc<dyn TeamRepository>,
 }
 
 impl StackUsecase {
@@ -28,6 +31,7 @@ impl StackUsecase {
         environment_usecase: Arc<EnvironmentUsecase>,
         registry_usecase: Arc<RegistryUsecase>,
         resource_repo: Arc<dyn ResourceRepository>,
+        team_repo: Arc<dyn TeamRepository>,
     ) -> Self {
         Self {
             repo,
@@ -35,6 +39,7 @@ impl StackUsecase {
             environment_usecase,
             registry_usecase,
             resource_repo,
+            team_repo,
         }
     }
 
@@ -43,11 +48,20 @@ impl StackUsecase {
     }
 
     pub async fn list_stacks(&self, user_id: &str) -> Result<Vec<Stack>> {
-        self.repo.list_by_user(user_id).await
+        let teams = self.team_repo.find_by_user_id(user_id).await?;
+        let mut all_stacks = Vec::new();
+        for team in teams {
+            let mut stacks = self.repo.list_by_team(&team.id).await?;
+            all_stacks.append(&mut stacks);
+        }
+        Ok(all_stacks)
     }
 
     pub async fn get_stack(&self, id: &str, user_id: &str) -> Result<Stack> {
-        self.repo.find_by_id(id, user_id).await
+        let stack = self.repo.find_by_id_internal(id).await?;
+        let _role = self.team_repo.get_user_role(&stack.team_id, user_id).await?
+            .ok_or(AppError::Forbidden("Access denied".to_string()))?;
+        Ok(stack)
     }
 
     pub async fn create_stack(
@@ -55,7 +69,11 @@ impl StackUsecase {
         name: &str,
         compose_content: &str,
         user_id: &str,
+        team_id: &str,
     ) -> Result<Stack> {
+        let _role = self.team_repo.get_user_role(team_id, user_id).await?
+            .ok_or(AppError::Forbidden("Access denied".to_string()))?;
+
         let parsed = parse_compose(compose_content)?;
 
         let id = Uuid::new_v4().to_string();
@@ -70,6 +88,7 @@ impl StackUsecase {
             id: id.clone(),
             name: name.to_string(),
             user_id: user_id.to_string(),
+            team_id: team_id.to_string(),
             compose_content: Some(compose_content.to_string()),
             status: "creating".to_string(),
             webhook_token: Some(token),
@@ -110,7 +129,7 @@ impl StackUsecase {
 
             let creds = self
                 .registry_usecase
-                .get_credentials_for_image(user_id, &config.image)
+                .get_credentials_for_image_internal(&stack.team_id, &config.image)
                 .await?;
             self.runtime.pull_image(&config.image, creds).await?;
             self.apply_resource_limits(&id, &service.name, &mut config).await?;
@@ -188,7 +207,7 @@ impl StackUsecase {
 
             let creds = self
                 .registry_usecase
-                .get_credentials_for_image(&stack.user_id, &config.image)
+                .get_credentials_for_image_internal(&stack.team_id, &config.image)
                 .await?;
             self.runtime.pull_image(&config.image, creds).await?;
 
@@ -471,7 +490,7 @@ impl StackUsecase {
             // Pull stable image anyway to be sure
             let creds = self
                 .registry_usecase
-                .get_credentials_for_image(&stack.user_id, &config.image)
+                .get_credentials_for_image_internal(&stack.team_id, &config.image)
                 .await?;
             self.runtime.pull_image(&config.image, creds).await?;
 
@@ -540,7 +559,7 @@ impl StackUsecase {
 
         let creds = self
             .registry_usecase
-            .get_credentials_for_image(user_id, &config.image)
+            .get_credentials_for_image_internal(&stack.team_id, &config.image)
             .await?;
         self.runtime.pull_image(&config.image, creds).await?;
         let containers = self.get_stack_containers(&stack.id).await?;

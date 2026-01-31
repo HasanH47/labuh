@@ -5,15 +5,16 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { auth, theme } from '$lib/stores';
+	import { auth, theme, activeTeam } from '$lib/stores';
 	import { api, type RegistryCredential } from '$lib/api';
-	import { Trash2, Plus, Container } from '@lucide/svelte';
+	import { Trash2, Plus, Container, Users } from '@lucide/svelte';
 
 	let name = $state($auth.user?.name || '');
 	let registries = $state<RegistryCredential[]>([]);
 	let loadingRegistries = $state(true);
 	let newRegistry = $state({
 		name: '',
+		team_id: '',
 		registry_url: '',
 		username: '',
 		password: ''
@@ -21,8 +22,13 @@
 	let addingRegistry = $state(false);
 
 	async function loadRegistries() {
+		if (!$activeTeam?.team) {
+			registries = [];
+			loadingRegistries = false;
+			return;
+		}
 		loadingRegistries = true;
-		const result = await api.registries.list();
+		const result = await api.registries.list($activeTeam.team.id);
 		if (result.data) {
 			registries = result.data;
 		}
@@ -33,16 +39,25 @@
 		loadRegistries();
 	});
 
+	$effect(() => {
+		if ($activeTeam?.team) {
+			loadRegistries();
+		}
+	});
+
 	async function addRegistry() {
-		if (!newRegistry.name || !newRegistry.registry_url || !newRegistry.username || !newRegistry.password) {
+		if (!newRegistry.name || !newRegistry.registry_url || !newRegistry.username || !newRegistry.password || !$activeTeam?.team) {
 			return;
 		}
 		addingRegistry = true;
-		const result = await api.registries.add(newRegistry);
+		const result = await api.registries.add({
+			...newRegistry,
+			team_id: $activeTeam.team.id
+		});
 		if (result.data) {
 			toast.success('Registry credential added');
 			registries = [result.data, ...registries];
-			newRegistry = { name: '', registry_url: '', username: '', password: '' };
+			newRegistry = { name: '', team_id: '', registry_url: '', username: '', password: '' };
 		} else {
 			toast.error(result.message || result.error || 'Failed to add registry');
 		}
@@ -50,8 +65,9 @@
 	}
 
 	async function removeRegistry(id: string) {
+		if (!$activeTeam?.team) return;
 		if (!confirm('Are you sure you want to remove this registry credential?')) return;
-		const result = await api.registries.remove(id);
+		const result = await api.registries.remove(id, $activeTeam.team.id);
 		if (!result.error) {
 			toast.success('Registry credential removed');
 			registries = registries.filter(r => r.id !== id);
@@ -146,7 +162,7 @@
 						</div>
 					</div>
 					<div class="flex justify-end">
-						<Button onclick={addRegistry} disabled={addingRegistry}>
+						<Button onclick={addRegistry} disabled={addingRegistry || !$activeTeam?.team || $activeTeam.role === 'Viewer'}>
 							<Plus class="h-4 w-4 mr-2" />
 							{addingRegistry ? 'Adding...' : 'Add Credential'}
 						</Button>
@@ -156,7 +172,12 @@
 				<!-- Registry List -->
 				<div>
 					<h4 class="mb-4 font-medium text-sm">Saved Registries</h4>
-					{#if loadingRegistries}
+					{#if !$activeTeam?.team}
+						<div class="flex flex-col items-center justify-center py-8 text-center bg-muted/20 rounded-lg">
+							<Users class="mb-2 h-8 w-8 text-muted-foreground/50" />
+							<p class="text-xs text-muted-foreground">Select a team to see registries</p>
+						</div>
+					{:else if loadingRegistries}
 						<div class="flex items-center justify-center py-8">
 							<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
 						</div>
@@ -176,13 +197,19 @@
 											<span>{reg.username}</span>
 										</div>
 									</div>
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() => removeRegistry(reg.id)}
-									>
-										<Trash2 class="h-4 w-4 text-destructive" />
-									</Button>
+									<div class="flex items-center gap-2">
+										{#if $activeTeam.role !== 'Viewer'}
+											<Button
+												variant="ghost"
+												size="icon"
+												onclick={() => removeRegistry(reg.id)}
+											>
+												<Trash2 class="h-4 w-4 text-destructive" />
+											</Button>
+										{:else}
+											<span class="text-[10px] text-muted-foreground italic px-2">Read Only</span>
+										{/if}
+									</div>
 								</div>
 							{/each}
 						</div>

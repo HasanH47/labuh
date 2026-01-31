@@ -10,23 +10,26 @@ use crate::domain::models::{CreateDomain, DomainResponse};
 use crate::error::Result;
 use crate::services::domain::DnsVerificationResult;
 use crate::services::DomainService;
+use crate::usecase::stack::StackUsecase;
 
 async fn list_domains(
-    State(domain_service): State<Arc<DomainService>>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State((domain_service, stack_usecase)): State<(Arc<DomainService>, Arc<StackUsecase>)>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(stack_id): Path<String>,
 ) -> Result<Json<Vec<DomainResponse>>> {
+    stack_usecase.get_stack(&stack_id, &current_user.id).await?;
     let domains = domain_service.list_domains(&stack_id).await?;
     let responses: Vec<DomainResponse> = domains.into_iter().map(Into::into).collect();
     Ok(Json(responses))
 }
 
 async fn add_domain(
-    State(domain_service): State<Arc<DomainService>>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State((domain_service, stack_usecase)): State<(Arc<DomainService>, Arc<StackUsecase>)>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(stack_id): Path<String>,
     Json(request): Json<CreateDomain>,
 ) -> Result<Json<DomainResponse>> {
+    stack_usecase.get_stack(&stack_id, &current_user.id).await?;
     let container_port = request.container_port.unwrap_or(80);
 
     let domain = domain_service
@@ -41,16 +44,17 @@ async fn add_domain(
 }
 
 async fn remove_domain(
-    State(domain_service): State<Arc<DomainService>>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State((domain_service, stack_usecase)): State<(Arc<DomainService>, Arc<StackUsecase>)>,
+    Extension(current_user): Extension<CurrentUser>,
     Path((stack_id, domain)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>> {
+    stack_usecase.get_stack(&stack_id, &current_user.id).await?;
     domain_service.remove_domain(&stack_id, &domain).await?;
     Ok(Json(serde_json::json!({ "status": "removed" })))
 }
 
 async fn verify_domain(
-    State(domain_service): State<Arc<DomainService>>,
+    State((domain_service, _stack_usecase)): State<(Arc<DomainService>, Arc<StackUsecase>)>,
     Extension(_current_user): Extension<CurrentUser>,
     Path((_stack_id, domain)): Path<(String, String)>,
 ) -> Result<Json<DnsVerificationResult>> {
@@ -58,11 +62,11 @@ async fn verify_domain(
     Ok(Json(result))
 }
 
-pub fn domain_routes(domain_service: Arc<DomainService>) -> Router {
+pub fn domain_routes(domain_service: Arc<DomainService>, stack_usecase: Arc<StackUsecase>) -> Router {
     Router::new()
         .route("/{stack_id}/domains", get(list_domains))
         .route("/{stack_id}/domains", post(add_domain))
         .route("/{stack_id}/domains/{domain}", delete(remove_domain))
         .route("/{stack_id}/domains/{domain}/verify", post(verify_domain))
-        .with_state(domain_service)
+        .with_state((domain_service, stack_usecase))
 }

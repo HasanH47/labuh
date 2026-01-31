@@ -35,10 +35,13 @@ async fn list_deployment_logs(
 }
 
 async fn get_deployment_log(
-    State((usecase, _stack_usecase)): State<(Arc<DeploymentLogUsecase>, Arc<StackUsecase>)>,
-    Extension(_current_user): Extension<CurrentUser>,
-    Path((_stack_id, log_id)): Path<(String, String)>,
+    State((usecase, stack_usecase)): State<(Arc<DeploymentLogUsecase>, Arc<StackUsecase>)>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path((stack_id, log_id)): Path<(String, String)>,
 ) -> Result<Json<DeploymentLogResponse>> {
+    // Verify user owns the stack
+    stack_usecase.get_stack(&stack_id, &current_user.id).await?;
+
     let log = usecase.get_log(&log_id).await?;
     Ok(Json(log))
 }

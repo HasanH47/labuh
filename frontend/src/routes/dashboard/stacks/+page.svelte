@@ -2,12 +2,13 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { api, type Stack } from '$lib/api';
+	import { activeTeam, auth } from '$lib/stores';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { Layers, Play, Square, Trash2, Plus, X, FileCode } from '@lucide/svelte';
+	import { Layers, Play, Square, Trash2, Plus, X, FileCode, Users } from '@lucide/svelte';
 
 	let stacks = $state<Stack[]>([]);
 	let loading = $state(true);
@@ -17,8 +18,13 @@
 	let actionLoading = $state<string | null>(null);
 
 	async function loadStacks() {
+		if (!$activeTeam?.team) {
+			stacks = [];
+			loading = false;
+			return;
+		}
 		loading = true;
-		const result = await api.stacks.list();
+		const result = await api.stacks.list($activeTeam.team.id);
 		if (result.data) {
 			stacks = result.data;
 		}
@@ -27,11 +33,18 @@
 
 	onMount(loadStacks);
 
+	$effect(() => {
+		if ($activeTeam) {
+			loadStacks();
+		}
+	});
+
 	async function createStack() {
-		if (!newStack.name || !newStack.composeContent) return;
+		if (!newStack.name || !newStack.composeContent || !$activeTeam?.team) return;
 		creating = true;
 		const result = await api.stacks.create({
 			name: newStack.name,
+			team_id: $activeTeam.team.id,
 			compose_content: newStack.composeContent,
 		});
 		if (result.data) {
@@ -98,13 +111,28 @@ services:
 			<h2 class="text-2xl font-bold tracking-tight">Stacks</h2>
 			<p class="text-muted-foreground">Deploy from Docker Compose files</p>
 		</div>
-		<Button class="gap-2" onclick={() => showCreateDialog = true}>
+		<Button
+			class="gap-2"
+			onclick={() => showCreateDialog = true}
+			disabled={!$activeTeam?.team || $activeTeam.role === 'Viewer'}
+		>
 			<Plus class="h-4 w-4" />
 			Import Compose
 		</Button>
 	</div>
 
-	{#if loading}
+	{#if !$activeTeam?.team}
+		<Card.Root>
+			<Card.Content class="flex flex-col items-center justify-center py-16 text-center">
+				<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+				<h3 class="text-lg font-semibold">No team selected</h3>
+				<p class="mb-4 text-sm text-muted-foreground">
+					Please select or create a team to manage stacks.
+				</p>
+				<Button href="/dashboard/teams">Go to Teams</Button>
+			</Card.Content>
+		</Card.Root>
+	{:else if loading}
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
@@ -135,18 +163,22 @@ services:
 							</a>
 						</div>
 						<div class="flex items-center gap-2">
-							{#if stack.status !== 'running'}
-								<Button variant="outline" size="icon" onclick={() => startStack(stack.id)} disabled={actionLoading === stack.id}>
-									<Play class="h-4 w-4" />
+							{#if $activeTeam.role !== 'Viewer'}
+								{#if stack.status !== 'running'}
+									<Button variant="outline" size="icon" onclick={() => startStack(stack.id)} disabled={actionLoading === stack.id}>
+										<Play class="h-4 w-4" />
+									</Button>
+								{:else}
+									<Button variant="outline" size="icon" onclick={() => stopStack(stack.id)} disabled={actionLoading === stack.id}>
+										<Square class="h-4 w-4" />
+									</Button>
+								{/if}
+								<Button variant="outline" size="icon" onclick={() => removeStack(stack.id)} disabled={actionLoading === stack.id}>
+									<Trash2 class="h-4 w-4 text-destructive" />
 								</Button>
 							{:else}
-								<Button variant="outline" size="icon" onclick={() => stopStack(stack.id)} disabled={actionLoading === stack.id}>
-									<Square class="h-4 w-4" />
-								</Button>
+								<span class="text-xs text-muted-foreground italic px-2">Read Only</span>
 							{/if}
-							<Button variant="outline" size="icon" onclick={() => removeStack(stack.id)} disabled={actionLoading === stack.id}>
-								<Trash2 class="h-4 w-4 text-destructive" />
-							</Button>
 						</div>
 					</Card.Content>
 				</Card.Root>

@@ -7,3 +7,6 @@ pub mod resource_repository;
 pub mod runtime;
 pub mod stack_repository;
 pub mod system;
+pub mod team_repository;
+
+pub use team_repository::TeamRepository;

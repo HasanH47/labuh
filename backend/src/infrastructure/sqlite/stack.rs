@@ -25,21 +25,21 @@ impl StackRepository for SqliteStackRepository {
         Ok(stacks)
     }
 
-    async fn list_by_user(&self, user_id: &str) -> Result<Vec<Stack>> {
+    async fn list_by_team(&self, team_id: &str) -> Result<Vec<Stack>> {
         let stacks = sqlx::query_as::<_, Stack>(
-            "SELECT * FROM stacks WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT * FROM stacks WHERE team_id = ? ORDER BY created_at DESC",
         )
-        .bind(user_id)
+        .bind(team_id)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(stacks)
     }
 
-    async fn find_by_id(&self, id: &str, user_id: &str) -> Result<Stack> {
-        let stack = sqlx::query_as::<_, Stack>("SELECT * FROM stacks WHERE id = ? AND user_id = ?")
+    async fn find_by_id(&self, id: &str, team_id: &str) -> Result<Stack> {
+        let stack = sqlx::query_as::<_, Stack>("SELECT * FROM stacks WHERE id = ? AND team_id = ?")
             .bind(id)
-            .bind(user_id)
+            .bind(team_id)
             .fetch_optional(&self.pool)
             .await?
             .ok_or_else(|| AppError::NotFound("Stack not found".to_string()))?;
@@ -59,11 +59,12 @@ impl StackRepository for SqliteStackRepository {
 
     async fn create(&self, stack: Stack) -> Result<Stack> {
         sqlx::query(
-            "INSERT INTO stacks (id, name, user_id, compose_content, status, webhook_token, cron_schedule, health_check_path, health_check_interval, last_stable_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO stacks (id, name, user_id, team_id, compose_content, status, webhook_token, cron_schedule, health_check_path, health_check_interval, last_stable_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&stack.id)
         .bind(&stack.name)
         .bind(&stack.user_id)
+        .bind(&stack.team_id)
         .bind(&stack.compose_content)
         .bind(&stack.status)
         .bind(&stack.webhook_token)

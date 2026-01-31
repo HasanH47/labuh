@@ -115,17 +115,17 @@
   - [x] Historical metrics (store in SQLite)
   - [x] Resource usage graphs (SVG-based reactive charts)
 
-### Phase 12: Multi-User & Teams
+### Phase 12: Multi-User & Teams ✅
 
-- [ ] **User Roles**
-  - [ ] Admin (full access)
-  - [ ] Developer (projects, containers)
-  - [ ] Viewer (read-only)
+- [x] **User Roles**
+  - [x] Admin (full access)
+  - [x] Developer (projects, containers)
+  - [x] Viewer (read-only)
 
-- [ ] **Teams**
-  - [ ] Create team/organization
-  - [ ] Invite users to team
-  - [ ] Project ownership transfer
+- [x] **Teams**
+  - [x] Create team/organization
+  - [x] Invite users to team
+  - [x] Project ownership transfer
 
 ### Phase 13: Advanced Features
 

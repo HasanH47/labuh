@@ -21,6 +21,7 @@ pub struct ImageState {
 #[derive(Deserialize)]
 pub struct PullImageRequest {
     image: String,
+    team_id: String,
 }
 
 async fn list_images(State(state): State<ImageState>) -> Result<Json<Vec<ImageInfo>>> {
@@ -43,7 +44,7 @@ async fn pull_image(
 ) -> Result<Json<serde_json::Value>> {
     let creds = state
         .registry_usecase
-        .get_credentials_for_image(&user.id, &request.image)
+        .get_credentials_for_image(&user.id, &request.team_id, &request.image)
         .await?;
     state
         .container_service

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, type SystemStats, type Container, type Image, type Stack } from '$lib/api';
+	import { activeTeam } from '$lib/stores';
 	import * as Card from '$lib/components/ui/card';
-	import { Container as ContainerIcon, Image as ImageIcon, Layers, Activity, Cpu, HardDrive, Clock } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Container as ContainerIcon, Image as ImageIcon, Layers, Activity, Cpu, HardDrive, Clock, Users } from '@lucide/svelte';
 
 	let systemHealth = $state<{ status: string; version: string } | null>(null);
 	let systemStats = $state<SystemStats | null>(null);
@@ -11,14 +13,28 @@
 	let stacks = $state<Stack[]>([]);
 	let loading = $state(true);
 
-	onMount(async () => {
-		// Fetch all data
+	async function loadDashboardData() {
+		if (!$activeTeam?.team) {
+			containers = [];
+			stacks = [];
+			loading = false;
+			// We still want system health and stats
+			const [healthRes, statsRes] = await Promise.all([
+				api.health.check(),
+				api.system.stats(),
+			]);
+			if (healthRes.data) systemHealth = healthRes.data;
+			if (statsRes.data) systemStats = statsRes.data;
+			return;
+		}
+
+		loading = true;
 		const [healthRes, statsRes, containersRes, imagesRes, stacksRes] = await Promise.all([
 			api.health.check(),
 			api.system.stats(),
-			api.containers.list(true),
-			api.images.list(),
-			api.stacks.list(),
+			api.containers.list(true, $activeTeam.team.id),
+			api.images.list(), // Images are host-wide
+			api.stacks.list($activeTeam.team.id),
 		]);
 
 		if (healthRes.data) systemHealth = healthRes.data;
@@ -28,6 +44,14 @@
 		if (stacksRes.data) stacks = stacksRes.data;
 
 		loading = false;
+	}
+
+	onMount(loadDashboardData);
+
+	$effect(() => {
+		if ($activeTeam) {
+			loadDashboardData();
+		}
 	});
 
 	function formatBytes(bytes: number): string {
@@ -60,6 +84,17 @@
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
+	{:else if !$activeTeam?.team}
+		<Card.Root>
+			<Card.Content class="flex flex-col items-center justify-center py-16 text-center">
+				<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+				<h3 class="text-lg font-semibold">No team selected</h3>
+				<p class="mb-4 text-sm text-muted-foreground">
+					Please select or create a team to view your dashboard.
+				</p>
+				<Button href="/dashboard/teams">Go to Teams</Button>
+			</Card.Content>
+		</Card.Root>
 	{:else}
 		<!-- Stats Cards -->
 		<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

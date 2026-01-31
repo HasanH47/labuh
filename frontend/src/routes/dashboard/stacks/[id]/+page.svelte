@@ -14,9 +14,10 @@
 		ArrowLeft, Play, Square, Trash2, RefreshCw, Terminal, Layers,
 		Container as ContainerIcon, FileCode, Save, CheckCircle, XCircle,
 		Globe, History, Webhook, Copy, AlertCircle, RotateCcw, Activity, Settings, Eye, EyeOff, Plus, ExternalLink,
-		Cpu, HardDrive, Gauge
+		Cpu, HardDrive, Gauge, Users
 	} from '@lucide/svelte';
 	import ResourceChart from '$lib/components/ResourceChart.svelte';
+	import { activeTeam } from '$lib/stores';
 
 	const stackId: string = $page.params.id ?? '';
 
@@ -66,6 +67,8 @@
 	let newDomainContainer = $state('');
 	let newDomainPort = $state(80);
 	let addingDomain = $state(false);
+
+	const isViewer = $derived($activeTeam?.role === 'Viewer');
 
 	async function loadStack() {
 		const result = await api.stacks.get(stackId);
@@ -432,7 +435,15 @@
 			<ArrowLeft class="h-5 w-5" />
 		</Button>
 		<div class="flex-1">
-			<h2 class="text-2xl font-bold tracking-tight">{stack?.name || 'Loading...'}</h2>
+			<div class="flex items-center gap-2">
+				<h2 class="text-2xl font-bold tracking-tight">{stack?.name || 'Loading...'}</h2>
+				{#if $activeTeam?.team}
+					<span class="text-[10px] uppercase font-bold text-muted-foreground bg-muted-foreground/10 px-2 py-0.5 rounded flex items-center gap-1">
+						<Users class="h-2.5 w-2.5" />
+						{$activeTeam.team.name}
+					</span>
+				{/if}
+			</div>
 			<p class="text-muted-foreground">Stack Details</p>
 		</div>
 		<Button variant="ghost" size="sm" onclick={loadStack}>
@@ -467,34 +478,38 @@
 								</div>
 							</div>
 							<div class="flex items-center gap-2">
-								{#if stack.status !== 'running'}
-									<Button variant="outline" size="sm" onclick={startStack} disabled={actionLoading}>
-										<Play class="h-4 w-4 mr-1" /> Start
+								{#if !isViewer}
+									{#if stack.status !== 'running'}
+										<Button variant="outline" size="sm" onclick={startStack} disabled={actionLoading}>
+											<Play class="h-4 w-4 mr-1" /> Start
+										</Button>
+									{:else}
+										<Button variant="outline" size="sm" onclick={stopStack} disabled={actionLoading}>
+											<Square class="h-4 w-4 mr-1" /> Stop
+										</Button>
+									{/if}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={rollbackStack}
+										disabled={actionLoading || !stack.last_stable_images}
+										title="Rollback to last stable version"
+									>
+										<RotateCcw class="h-4 w-4 mr-1 {actionLoading ? 'animate-spin' : ''}" />
+										{actionLoading ? 'Rolling back...' : 'Rollback'}
+									</Button>
+									<Button variant="outline" size="sm" onclick={() => redeployStack()} disabled={actionLoading} title="Recreate containers to apply changes">
+										<RotateCcw class="h-4 w-4 mr-1" /> Restart
+									</Button>
+									<Button variant="outline" size="sm" onclick={() => showComposeEditor = !showComposeEditor}>
+										<FileCode class="h-4 w-4 mr-1" /> Edit
+									</Button>
+									<Button variant="outline" size="sm" onclick={removeStack} disabled={actionLoading}>
+										<Trash2 class="h-4 w-4 text-destructive" />
 									</Button>
 								{:else}
-									<Button variant="outline" size="sm" onclick={stopStack} disabled={actionLoading}>
-										<Square class="h-4 w-4 mr-1" /> Stop
-									</Button>
+									<span class="text-xs text-muted-foreground italic px-2">Read Only Mode</span>
 								{/if}
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={rollbackStack}
-									disabled={actionLoading || !stack.last_stable_images}
-									title="Rollback to last stable version"
-								>
-									<RotateCcw class="h-4 w-4 mr-1 {actionLoading ? 'animate-spin' : ''}" />
-									{actionLoading ? 'Rolling back...' : 'Rollback'}
-								</Button>
-								<Button variant="outline" size="sm" onclick={() => redeployStack()} disabled={actionLoading} title="Recreate containers to apply changes">
-									<RotateCcw class="h-4 w-4 mr-1" /> Restart
-								</Button>
-								<Button variant="outline" size="sm" onclick={() => showComposeEditor = !showComposeEditor}>
-									<FileCode class="h-4 w-4 mr-1" /> Edit
-								</Button>
-								<Button variant="outline" size="sm" onclick={removeStack} disabled={actionLoading}>
-									<Trash2 class="h-4 w-4 text-destructive" />
-								</Button>
 							</div>
 						</div>
 					</Card.Header>
@@ -587,18 +602,24 @@
 										</div>
 									</div>
 									<div class="flex items-center gap-2">
-										<Button variant="ghost" size="sm" onclick={() => loadContainerLogs(container.id)} title="View Logs">
-											<Terminal class="h-4 w-4" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="sm"
-											onclick={() => redeployStack(container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, ''))}
-											title="Redeploy Service"
-											disabled={actionLoading}
-										>
-											<RefreshCw class="h-4 w-4 {actionLoading ? 'animate-spin' : ''}" />
-										</Button>
+										{#if !isViewer}
+											<Button variant="ghost" size="sm" onclick={() => loadContainerLogs(container.id)} title="View Logs">
+												<Terminal class="h-4 w-4" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => redeployStack(container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, ''))}
+												title="Redeploy Service"
+												disabled={actionLoading}
+											>
+												<RefreshCw class="h-4 w-4 {actionLoading ? 'animate-spin' : ''}" />
+											</Button>
+										{:else}
+											<Button variant="ghost" size="sm" onclick={() => loadContainerLogs(container.id)} title="View Logs">
+												<Terminal class="h-4 w-4" />
+											</Button>
+										{/if}
 									</div>
 								</div>
 							{/each}
@@ -660,7 +681,7 @@
 										size="sm"
 										variant="outline"
 										onclick={() => updateResourceLimit(serviceName, limits?.cpu_limit, limits?.memory_limit ? limits.memory_limit / (1024 * 1024) : undefined)}
-										disabled={savingResources.has(serviceName)}
+										disabled={savingResources.has(serviceName) || isViewer}
 									>
 										{savingResources.has(serviceName) ? 'Saving...' : 'Save'}
 									</Button>
@@ -814,7 +835,7 @@
 										{/each}
 									</select>
 								</div>
-								<Button size="sm" variant="outline" onclick={addEnvVar}>
+								<Button size="sm" variant="outline" onclick={addEnvVar} disabled={isViewer}>
 									<Plus class="h-3 w-3 mr-1" /> Add
 								</Button>
 							</div>
@@ -855,9 +876,11 @@
 													{/if}
 												</Button>
 											{/if}
-											<Button variant="ghost" size="icon" class="h-5 w-5 text-destructive" onclick={() => deleteEnvVar(env.key, env.container_name)} title="Delete">
-												<Trash2 class="h-3 w-3" />
-											</Button>
+											{#if !isViewer}
+												<Button variant="ghost" size="icon" class="h-5 w-5 text-destructive" onclick={() => deleteEnvVar(env.key, env.container_name)} title="Delete">
+													<Trash2 class="h-3 w-3" />
+												</Button>
+											{/if}
 										</div>
 									</div>
 								{/each}
@@ -910,7 +933,7 @@
 										{/if}
 									</p>
 								</div>
-								<Button variant="outline" size="sm" class="w-full text-xs" onclick={regenerateWebhook}>
+								<Button variant="outline" size="sm" class="w-full text-xs" onclick={regenerateWebhook} disabled={isViewer}>
 									Regenerate Token
 								</Button>
 							</div>
@@ -945,7 +968,7 @@
 							<Label class="text-xs">Interval (seconds)</Label>
 							<Input type="number" bind:value={healthCheckInterval} class="font-mono text-xs" />
 						</div>
-						<Button variant="outline" size="sm" class="w-full" onclick={updateAutomation} disabled={savingAutomation}>
+						<Button variant="outline" size="sm" class="w-full" onclick={updateAutomation} disabled={savingAutomation || isViewer}>
 							<Save class="h-3 w-3 mr-1" /> {savingAutomation ? 'Saving...' : 'Save Automation'}
 						</Button>
 					</Card.Content>
@@ -983,7 +1006,7 @@
 									bind:value={newDomainPort}
 									class="w-20"
 								/>
-								<Button size="icon" onclick={addDomain} disabled={addingDomain || !newDomain || !newDomainContainer}>
+								<Button size="icon" onclick={addDomain} disabled={addingDomain || !newDomain || !newDomainContainer || isViewer}>
 									{#if addingDomain}
 										<div class="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-foreground"></div>
 									{:else}
@@ -1009,14 +1032,18 @@
 									<span class="text-xs text-muted-foreground">→ {domain.container_name}:{domain.container_port}</span>
 										</div>
 										<div class="flex gap-1">
-											{#if !domain.verified}
-												<Button variant="ghost" size="icon" class="h-6 w-6" onclick={() => verifyDomain(domain.domain)} title="Verify">
-													<CheckCircle class="h-3 w-3" />
+											{#if !isViewer}
+												{#if !domain.verified}
+													<Button variant="ghost" size="icon" class="h-6 w-6" onclick={() => verifyDomain(domain.domain)} title="Verify">
+														<CheckCircle class="h-3 w-3" />
+													</Button>
+												{/if}
+												<Button variant="ghost" size="icon" class="h-6 w-6 text-destructive" onclick={() => removeDomain(domain.domain)} title="Remove">
+													<Trash2 class="h-3 w-3" />
 												</Button>
+											{:else}
+												<span class="text-[10px] text-muted-foreground mr-1">View Only</span>
 											{/if}
-											<Button variant="ghost" size="icon" class="h-6 w-6 text-destructive" onclick={() => removeDomain(domain.domain)} title="Remove">
-												<Trash2 class="h-3 w-3" />
-											</Button>
 										</div>
 									</div>
 								{/each}

@@ -16,23 +16,23 @@ impl SqliteRegistryRepository {
 
 #[async_trait]
 impl RegistryRepository for SqliteRegistryRepository {
-    async fn list_by_user(&self, user_id: &str) -> Result<Vec<RegistryCredential>> {
+    async fn list_by_team(&self, team_id: &str) -> Result<Vec<RegistryCredential>> {
         let credentials = sqlx::query_as::<_, RegistryCredential>(
-            "SELECT * FROM registry_credentials WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT * FROM registry_credentials WHERE team_id = ? ORDER BY created_at DESC",
         )
-        .bind(user_id)
+        .bind(team_id)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(credentials)
     }
 
-    async fn find_by_id(&self, id: &str, user_id: &str) -> Result<RegistryCredential> {
+    async fn find_by_id(&self, id: &str, team_id: &str) -> Result<RegistryCredential> {
         let credential = sqlx::query_as::<_, RegistryCredential>(
-            "SELECT * FROM registry_credentials WHERE id = ? AND user_id = ?",
+            "SELECT * FROM registry_credentials WHERE id = ? AND team_id = ?",
         )
         .bind(id)
-        .bind(user_id)
+        .bind(team_id)
         .fetch_optional(&self.pool)
         .await?
         .ok_or_else(|| AppError::NotFound("Credential not found".to_string()))?;
@@ -40,11 +40,11 @@ impl RegistryRepository for SqliteRegistryRepository {
         Ok(credential)
     }
 
-    async fn find_by_url(&self, user_id: &str, url: &str) -> Result<Option<RegistryCredential>> {
+    async fn find_by_url(&self, team_id: &str, url: &str) -> Result<Option<RegistryCredential>> {
         let credential = sqlx::query_as::<_, RegistryCredential>(
-            "SELECT * FROM registry_credentials WHERE user_id = ? AND registry_url = ? LIMIT 1",
+            "SELECT * FROM registry_credentials WHERE team_id = ? AND registry_url = ? LIMIT 1",
         )
-        .bind(user_id)
+        .bind(team_id)
         .bind(url)
         .fetch_optional(&self.pool)
         .await?;
@@ -73,10 +73,11 @@ impl RegistryRepository for SqliteRegistryRepository {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO registry_credentials (id, user_id, name, registry_url, username, password_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO registry_credentials (id, user_id, team_id, name, registry_url, username, password_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(&cred.id)
             .bind(&cred.user_id)
+            .bind(&cred.team_id)
             .bind(&cred.name)
             .bind(&cred.registry_url)
             .bind(&cred.username)
@@ -90,10 +91,10 @@ impl RegistryRepository for SqliteRegistryRepository {
         Ok(cred)
     }
 
-    async fn delete(&self, id: &str, user_id: &str) -> Result<()> {
-        let result = sqlx::query("DELETE FROM registry_credentials WHERE id = ? AND user_id = ?")
+    async fn delete(&self, id: &str, team_id: &str) -> Result<()> {
+        let result = sqlx::query("DELETE FROM registry_credentials WHERE id = ? AND team_id = ?")
             .bind(id)
-            .bind(user_id)
+            .bind(team_id)
             .execute(&self.pool)
             .await?;
 

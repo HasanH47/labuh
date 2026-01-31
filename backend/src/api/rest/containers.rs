@@ -15,6 +15,7 @@ use crate::usecase::stack::StackUsecase;
 pub struct ListContainersQuery {
     #[serde(default)]
     all: bool,
+    pub team_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -33,7 +34,17 @@ async fn list_containers(
     Query(query): Query<ListContainersQuery>,
 ) -> Result<Json<Vec<ContainerInfo>>> {
     let stacks = stack_usecase.list_stacks(&user.id).await?;
-    let stack_ids: std::collections::HashSet<String> = stacks.into_iter().map(|s| s.id).collect();
+    let stack_ids: std::collections::HashSet<String> = stacks
+        .into_iter()
+        .filter(|s| {
+            if let Some(ref team_id) = query.team_id {
+                s.team_id == *team_id
+            } else {
+                true
+            }
+        })
+        .map(|s| s.id)
+        .collect();
 
     let all_containers = stack_usecase.runtime().list_containers(query.all).await?;
     let filtered: Vec<ContainerInfo> = all_containers
