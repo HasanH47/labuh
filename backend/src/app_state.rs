@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::services::{AuthService, CaddyService, ContainerService, DomainService, NetworkService};
@@ -65,12 +65,15 @@ impl AppState {
     }
 
     /// Initialize core services that always run
-    async fn init_core_services(config: &Config, pool: &SqlitePool) -> (
+    async fn init_core_services(
+        config: &Config,
+        pool: &SqlitePool,
+    ) -> (
         Arc<AuthService>,
         Option<Arc<ContainerService>>,
         Arc<CaddyService>,
         Arc<DomainService>,
-        Arc<SystemUsecase>
+        Arc<SystemUsecase>,
     ) {
         let auth_service = Arc::new(AuthService::new(
             pool.clone(),
@@ -84,7 +87,10 @@ impl AppState {
                 Some(Arc::new(service))
             }
             Err(e) => {
-                tracing::warn!("Container runtime not available: {}. Container features disabled.", e);
+                tracing::warn!(
+                    "Container runtime not available: {}. Container features disabled.",
+                    e
+                );
                 None
             }
         };
@@ -92,14 +98,24 @@ impl AppState {
         let caddy_service = Arc::new(CaddyService::new(config.caddy_admin_api.clone()));
         let domain_service = Arc::new(DomainService::new(pool.clone(), caddy_service.clone()));
 
-        let system_provider = Arc::new(crate::infrastructure::linux_system::LinuxSystemProvider::new());
+        let system_provider =
+            Arc::new(crate::infrastructure::linux_system::LinuxSystemProvider::new());
         let system_usecase = Arc::new(crate::usecase::system::SystemUsecase::new(system_provider));
 
-        (auth_service, container_service, caddy_service, domain_service, system_usecase)
+        (
+            auth_service,
+            container_service,
+            caddy_service,
+            domain_service,
+            system_usecase,
+        )
     }
 
     /// Bootstrap Infrastructure (Network, Caddy, Domains)
-    async fn init_infrastructure(&self, container_svc: &Arc<ContainerService>) -> anyhow::Result<()> {
+    async fn init_infrastructure(
+        &self,
+        container_svc: &Arc<ContainerService>,
+    ) -> anyhow::Result<()> {
         let network_service = NetworkService::new(container_svc.clone());
         if let Err(e) = network_service.ensure_labuh_network().await {
             tracing::error!("Failed to create labuh-network: {}", e);
@@ -124,22 +140,34 @@ impl AppState {
     async fn init_usecases(&mut self) -> anyhow::Result<()> {
         let pool = self._pool.clone();
 
-        let env_repo = Arc::new(crate::infrastructure::sqlite::environment::SqliteEnvironmentRepository::new(pool.clone()));
+        let env_repo = Arc::new(
+            crate::infrastructure::sqlite::environment::SqliteEnvironmentRepository::new(
+                pool.clone(),
+            ),
+        );
         let env_uc = Arc::new(EnvironmentUsecase::new(env_repo));
         self.env_usecase = Some(env_uc.clone());
 
-        let registry_repo = Arc::new(crate::infrastructure::sqlite::registry::SqliteRegistryRepository::new(pool.clone()));
+        let registry_repo = Arc::new(
+            crate::infrastructure::sqlite::registry::SqliteRegistryRepository::new(pool.clone()),
+        );
         let registry_uc = Arc::new(RegistryUsecase::new(registry_repo));
         self.registry_usecase = Some(registry_uc.clone());
 
-        let stack_repo = Arc::new(crate::infrastructure::sqlite::stack::SqliteStackRepository::new(pool.clone()));
-        let runtime_adapter = Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
+        let stack_repo = Arc::new(
+            crate::infrastructure::sqlite::stack::SqliteStackRepository::new(pool.clone()),
+        );
+        let runtime_adapter =
+            Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
 
-        let team_repo = Arc::new(crate::infrastructure::sqlite::team::SqliteTeamRepository::new(pool.clone()));
+        let team_repo =
+            Arc::new(crate::infrastructure::sqlite::team::SqliteTeamRepository::new(pool.clone()));
         let team_uc = Arc::new(TeamUsecase::new(team_repo.clone()));
         self.team_usecase = Some(team_uc.clone());
 
-        let template_repo = Arc::new(crate::infrastructure::sqlite::template::SqliteTemplateRepository::new(pool.clone()));
+        let template_repo = Arc::new(
+            crate::infrastructure::sqlite::template::SqliteTemplateRepository::new(pool.clone()),
+        );
         let template_uc = Arc::new(TemplateUsecase::new(template_repo));
         self.template_usecase = Some(template_uc.clone());
 
@@ -151,8 +179,14 @@ impl AppState {
             }
         });
 
-        let resource_repo = Arc::new(crate::infrastructure::sqlite::resource::SqliteResourceRepository::new(pool.clone()));
-        let resource_uc = Arc::new(ResourceUsecase::new(resource_repo.clone(), stack_repo.clone(), team_repo.clone()));
+        let resource_repo = Arc::new(
+            crate::infrastructure::sqlite::resource::SqliteResourceRepository::new(pool.clone()),
+        );
+        let resource_uc = Arc::new(ResourceUsecase::new(
+            resource_repo.clone(),
+            stack_repo.clone(),
+            team_repo.clone(),
+        ));
         self.resource_usecase = Some(resource_uc);
 
         // Background Task: Metrics Collector
@@ -179,11 +213,17 @@ impl AppState {
         let st_uc = stack_uc.clone();
         let st_repo = stack_repo.clone();
         tokio::spawn(async move {
-            let scheduler = Arc::new(crate::usecase::scheduler::AutomationScheduler::new(st_uc, st_repo));
+            let scheduler = Arc::new(crate::usecase::scheduler::AutomationScheduler::new(
+                st_uc, st_repo,
+            ));
             scheduler.start().await;
         });
 
-        let log_repo = Arc::new(crate::infrastructure::sqlite::deployment_log::SqliteDeploymentLogRepository::new(pool.clone()));
+        let log_repo = Arc::new(
+            crate::infrastructure::sqlite::deployment_log::SqliteDeploymentLogRepository::new(
+                pool.clone(),
+            ),
+        );
         self.log_usecase = Some(Arc::new(DeploymentLogUsecase::new(log_repo)));
 
         Ok(())

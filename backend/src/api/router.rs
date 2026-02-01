@@ -1,13 +1,13 @@
-use std::sync::Arc;
 use axum::{middleware as axum_middleware, Router};
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
-use crate::app_state::AppState;
 use crate::api::middleware::auth_middleware;
 use crate::api::rest::auth::protected_auth_routes;
 use crate::api::rest::*;
+use crate::app_state::AppState;
 
 /// Create the main application router
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -127,14 +127,18 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
 }
 
 fn add_frontend_route(app: Router) -> Router {
-    let frontend_dir = std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "./frontend/build".to_string());
+    let frontend_dir =
+        std::env::var("FRONTEND_DIR").unwrap_or_else(|_| "./frontend/build".to_string());
     if std::path::Path::new(&frontend_dir).exists() {
         tracing::info!("Serving frontend from {}", frontend_dir);
         let static_service = ServeDir::new(&frontend_dir)
             .fallback(ServeFile::new(format!("{}/index.html", frontend_dir)));
         app.fallback_service(static_service)
     } else {
-        tracing::warn!("Frontend directory {} not found. Dashboard will not be available.", frontend_dir);
+        tracing::warn!(
+            "Frontend directory {} not found. Dashboard will not be available.",
+            frontend_dir
+        );
         app
     }
 }
