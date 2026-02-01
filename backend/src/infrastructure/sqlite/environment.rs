@@ -1,5 +1,5 @@
 use crate::domain::environment_repository::EnvironmentRepository;
-use crate::domain::models::environment::StackEnvVar;
+use crate::domain::models::StackEnvVar;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use sqlx::SqlitePool;

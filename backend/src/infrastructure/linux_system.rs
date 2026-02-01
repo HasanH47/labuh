@@ -1,4 +1,4 @@
-use crate::domain::models::system::{LoadAverage, SystemStats};
+use crate::domain::models::{LoadAverage, SystemStats};
 use crate::domain::system::SystemProvider;
 use crate::error::Result;
 use async_trait::async_trait;

@@ -1,4 +1,4 @@
-use crate::domain::models::template::Template;
+use crate::domain::models::Template;
 use crate::error::Result;
 use async_trait::async_trait;
 

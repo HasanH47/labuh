@@ -1,11 +1,8 @@
-use bollard::container::{
-    Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
-};
+use bollard::container::{ListContainersOptions, StartContainerOptions, StopContainerOptions, RemoveContainerOptions};
 use bollard::image::{CreateImageOptions, ListImagesOptions, RemoveImageOptions};
 use bollard::Docker;
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -51,53 +48,6 @@ pub struct ImageInspect {
     pub size: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CreateContainerRequest {
-    pub name: String,
-    pub image: String,
-    pub env: Option<Vec<String>>,
-    pub ports: Option<HashMap<String, String>>,
-    pub volumes: Option<HashMap<String, String>>,
-    pub network: Option<String>,
-    pub labels: Option<HashMap<String, String>>,
-}
-impl From<crate::domain::runtime::ContainerConfig> for CreateContainerRequest {
-    fn from(config: crate::domain::runtime::ContainerConfig) -> Self {
-        let mut ports = HashMap::new();
-        if let Some(p_vec) = config.ports {
-            for p in p_vec {
-                let parts: Vec<&str> = p.split(':').collect();
-                if parts.len() == 2 {
-                    ports.insert(parts[1].to_string(), parts[0].to_string());
-                }
-            }
-        }
-
-        let mut volumes = HashMap::new();
-        if let Some(v_vec) = config.volumes {
-            for v in v_vec {
-                let parts: Vec<&str> = v.split(':').collect();
-                if parts.len() == 2 {
-                    volumes.insert(parts[0].to_string(), parts[1].to_string());
-                }
-            }
-        }
-
-        Self {
-            name: config.name,
-            image: config.image,
-            env: config.env,
-            ports: if ports.is_empty() { None } else { Some(ports) },
-            volumes: if volumes.is_empty() {
-                None
-            } else {
-                Some(volumes)
-            },
-            network: Some("labuh-network".to_string()),
-            labels: config.labels,
-        }
-    }
-}
 
 pub struct ContainerService {
     pub docker: Arc<Docker>,
@@ -155,83 +105,6 @@ impl ContainerService {
             .collect())
     }
 
-    /// Create a new container with full configuration
-    pub async fn create_container(&self, request: CreateContainerRequest) -> Result<String> {
-        use bollard::models::{HostConfig, PortBinding};
-        use std::collections::HashMap;
-
-        // Build exposed ports and port bindings
-        let mut exposed_ports: HashMap<String, HashMap<(), ()>> = HashMap::new();
-        let mut port_bindings: HashMap<String, Option<Vec<PortBinding>>> = HashMap::new();
-
-        if let Some(ref ports) = request.ports {
-            for (container_port, host_port) in ports {
-                // Format: "80/tcp" or just "80"
-                let port_key = if container_port.contains('/') {
-                    container_port.clone()
-                } else {
-                    format!("{}/tcp", container_port)
-                };
-
-                // Add to exposed ports
-                exposed_ports.insert(port_key.clone(), HashMap::new());
-
-                // Add to port bindings
-                port_bindings.insert(
-                    port_key,
-                    Some(vec![PortBinding {
-                        host_ip: Some("0.0.0.0".to_string()),
-                        host_port: Some(host_port.clone()),
-                    }]),
-                );
-            }
-        }
-
-        // Build volume bindings (host_path:container_path format)
-        let binds: Option<Vec<String>> = request.volumes.map(|vols| {
-            vols.into_iter()
-                .map(|(host, container)| format!("{}:{}", host, container))
-                .collect()
-        });
-
-        // Build host config
-        let host_config = HostConfig {
-            port_bindings: if port_bindings.is_empty() {
-                None
-            } else {
-                Some(port_bindings)
-            },
-            binds,
-            network_mode: request.network,
-            ..Default::default()
-        };
-
-        let config = Config {
-            image: Some(request.image),
-            env: request.env,
-            exposed_ports: if exposed_ports.is_empty() {
-                None
-            } else {
-                Some(exposed_ports)
-            },
-            host_config: Some(host_config),
-            labels: request.labels,
-            ..Default::default()
-        };
-
-        let options = CreateContainerOptions {
-            name: request.name,
-            platform: None,
-        };
-
-        let response = self
-            .docker
-            .create_container(Some(options), config)
-            .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
-
-        Ok(response.id)
-    }
 
     /// Start a container
     pub async fn start_container(&self, id: &str) -> Result<()> {
@@ -265,45 +138,6 @@ impl ContainerService {
         Ok(())
     }
 
-    /// Get container logs
-    pub async fn get_container_logs(&self, id: &str, tail: usize) -> Result<Vec<String>> {
-        let options = LogsOptions::<String> {
-            stdout: true,
-            stderr: true,
-            tail: tail.to_string(),
-            ..Default::default()
-        };
-
-        let mut logs = self.docker.logs(id, Some(options));
-        let mut result = Vec::new();
-
-        while let Some(log) = logs.next().await {
-            match log {
-                Ok(output) => {
-                    let line = match output {
-                        LogOutput::StdOut { message } => {
-                            String::from_utf8_lossy(&message).to_string()
-                        }
-                        LogOutput::StdErr { message } => {
-                            String::from_utf8_lossy(&message).to_string()
-                        }
-                        LogOutput::Console { message } => {
-                            String::from_utf8_lossy(&message).to_string()
-                        }
-                        LogOutput::StdIn { message } => {
-                            String::from_utf8_lossy(&message).to_string()
-                        }
-                    };
-                    result.push(line);
-                }
-                Err(e) => {
-                    tracing::warn!("Error reading log: {}", e);
-                }
-            }
-        }
-
-        Ok(result)
-    }
 
     /// List all images
     pub async fn list_images(&self) -> Result<Vec<ImageInfo>> {

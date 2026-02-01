@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::models::registry::{RegistryCredential, RegistryCredentialResponse};
+use crate::domain::models::{RegistryCredential, RegistryCredentialResponse};
 use crate::domain::registry_repository::RegistryRepository;
 use crate::error::{AppError, Result};
 
@@ -28,14 +27,6 @@ impl RegistryUsecase {
         Ok(creds.into_iter().map(Into::into).collect())
     }
 
-    pub async fn list_user_credentials(
-        &self,
-        _user_id: &str,
-    ) -> Result<Vec<RegistryCredentialResponse>> {
-        // This would need a join or iterating over user teams
-        // For simplicity, let's focus on team-based listing first.
-        Ok(vec![])
-    }
 
     pub async fn add_credential(
         &self,

@@ -1,4 +1,4 @@
-use crate::domain::models::team::{Team, TeamMember, TeamRole};
+use crate::domain::models::{Team, TeamMember, TeamRole};
 use crate::error::Result;
 use async_trait::async_trait;
 

@@ -5,7 +5,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::domain::models::template::{Template, TemplateResponse};
+use crate::domain::models::{Template, TemplateResponse};
 use crate::error::Result;
 use crate::usecase::template::TemplateUsecase;
 

@@ -1,4 +1,4 @@
-use crate::domain::models::system::SystemStats;
+use crate::domain::models::SystemStats;
 use crate::domain::system::SystemProvider;
 use crate::error::Result;
 use std::sync::Arc;

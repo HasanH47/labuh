@@ -6,7 +6,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::api::middleware::auth::CurrentUser;
-use crate::domain::models::{CreateStack, StackHealth, StackLogEntry, StackResponse};
+use crate::domain::models::{CreateStack, Stack, StackBackup, StackHealth, StackLogEntry, StackResponse};
 use crate::error::Result;
 use crate::usecase::stack::StackUsecase;
 
@@ -20,7 +20,7 @@ async fn list_stacks(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListStacksQuery>,
 ) -> Result<Json<Vec<StackResponse>>> {
-    let stacks: Vec<crate::domain::models::Stack> = usecase.list_stacks(&current_user.id).await?;
+    let stacks: Vec<Stack> = usecase.list_stacks(&current_user.id).await?;
     let responses: Vec<StackResponse> = stacks
         .into_iter()
         .filter(|s| {
@@ -40,7 +40,7 @@ async fn get_stack(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<StackResponse>> {
-    let stack: crate::domain::models::Stack = usecase.get_stack(&id, &current_user.id).await?;
+    let stack: Stack = usecase.get_stack(&id, &current_user.id).await?;
     Ok(Json(stack.into()))
 }
 
@@ -49,7 +49,7 @@ async fn create_stack(
     Extension(current_user): Extension<CurrentUser>,
     Json(request): Json<CreateStack>,
 ) -> Result<Json<StackResponse>> {
-    let stack: crate::domain::models::Stack = usecase
+    let stack: Stack = usecase
         .create_stack(
             &request.name,
             &request.compose_content,
@@ -65,7 +65,7 @@ async fn get_stack_containers(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<crate::domain::runtime::ContainerInfo>>> {
-    let stack: crate::domain::models::Stack = usecase.get_stack(&id, &current_user.id).await?;
+    let stack: Stack = usecase.get_stack(&id, &current_user.id).await?;
     let containers = usecase.get_stack_containers(&stack.id).await?;
     Ok(Json(containers))
 }
@@ -229,7 +229,7 @@ async fn get_stack_backup(
     State(usecase): State<Arc<StackUsecase>>,
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
-) -> Result<Json<crate::domain::models::stack::StackBackup>> {
+) -> Result<Json<StackBackup>> {
     let backup = usecase.get_stack_backup(&id, &current_user.id).await?;
     Ok(Json(backup))
 }
@@ -237,7 +237,7 @@ async fn get_stack_backup(
 #[derive(serde::Deserialize)]
 struct RestoreStackRequest {
     team_id: String,
-    backup: crate::domain::models::stack::StackBackup,
+    backup: StackBackup,
 }
 
 async fn restore_stack(

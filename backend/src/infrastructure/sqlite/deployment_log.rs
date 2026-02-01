@@ -1,5 +1,5 @@
 use crate::domain::deployment_log_repository::DeploymentLogRepository;
-use crate::domain::models::deployment_log::DeploymentLog;
+use crate::domain::models::DeploymentLog;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use sqlx::SqlitePool;
@@ -72,19 +72,4 @@ impl DeploymentLogRepository for SqliteDeploymentLogRepository {
         Ok(log)
     }
 
-    async fn append_log(&self, id: &str, log_line: &str) -> Result<()> {
-        let current = self.find_by_id(id).await?;
-        let new_logs = match current.logs {
-            Some(existing) => format!("{}\n{}", existing, log_line),
-            None => log_line.to_string(),
-        };
-
-        sqlx::query("UPDATE deployment_logs SET logs = ? WHERE id = ?")
-            .bind(&new_logs)
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
 }

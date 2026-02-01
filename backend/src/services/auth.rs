@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,

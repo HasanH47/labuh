@@ -1,4 +1,4 @@
-use crate::domain::models::resource::{ContainerResource, ResourceMetric};
+use crate::domain::models::{ContainerResource, ResourceMetric};
 use crate::domain::resource_repository::ResourceRepository;
 use crate::domain::stack_repository::StackRepository;
 use crate::error::Result;

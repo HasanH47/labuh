@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::deployment_log_repository::DeploymentLogRepository;
-use crate::domain::models::deployment_log::{DeploymentLog, DeploymentLogResponse};
+use crate::domain::models::{DeploymentLog, DeploymentLogResponse};
 use crate::error::Result;
 
 pub struct DeploymentLogUsecase {
@@ -67,7 +66,4 @@ impl DeploymentLogUsecase {
         Ok(saved.into())
     }
 
-    pub async fn append_log(&self, id: &str, log_line: &str) -> Result<()> {
-        self.repo.append_log(id, log_line).await
-    }
 }

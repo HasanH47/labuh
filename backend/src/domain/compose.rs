@@ -10,18 +10,13 @@ use crate::error::{AppError, Result};
 
 /// Parsed Docker Compose file structure
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ComposeFile {
-    pub version: Option<String>,
     pub services: HashMap<String, ComposeService>,
     #[serde(default)]
     pub networks: HashMap<String, ComposeNetwork>,
-    #[serde(default)]
-    pub volumes: HashMap<String, ComposeVolume>,
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ComposeService {
     pub image: Option<String>,
     pub build: Option<ComposeBuild>,
@@ -34,18 +29,15 @@ pub struct ComposeService {
     #[serde(default)]
     pub depends_on: Vec<String>,
     #[serde(default)]
-    pub networks: Vec<String>,
-    pub container_name: Option<String>,
-    pub restart: Option<String>,
+    pub _networks: Vec<String>,
+    pub _container_name: Option<String>,
+    pub _restart: Option<String>,
     #[serde(default)]
     pub labels: HashMap<String, String>,
-    pub command: Option<ComposeCommand>,
-    pub entrypoint: Option<ComposeCommand>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-#[allow(dead_code)]
 pub enum ComposeBuild {
     Simple(String),
     Extended {
@@ -63,34 +55,16 @@ pub enum ComposeEnvironment {
     Map(HashMap<String, Option<String>>),
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-#[allow(dead_code)]
-pub enum ComposeCommand {
-    Simple(String),
-    List(Vec<String>),
-}
 
 #[derive(Debug, Deserialize, Default)]
-#[allow(dead_code)]
-pub struct ComposeNetwork {
-    pub driver: Option<String>,
-    pub external: Option<bool>,
-}
+pub struct ComposeNetwork {}
 
-#[derive(Debug, Deserialize, Default)]
-#[allow(dead_code)]
-pub struct ComposeVolume {
-    pub driver: Option<String>,
-    pub external: Option<bool>,
-}
 
 /// Result of parsing a compose file
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ParsedCompose {
     pub services: Vec<ParsedService>,
-    pub networks: Vec<String>,
+    pub _networks: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -117,13 +91,6 @@ const BLOCKED_HOST_PATHS: &[&str] = &[
     "/run", "/sbin", "/sys", "/tmp", "/usr", "/var",
 ];
 
-/// Security validation result
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct VolumeValidationError {
-    pub volume: String,
-    pub reason: String,
-}
 
 /// Validate volume mounts for security issues
 pub fn validate_volume_security(volumes: &[String]) -> Result<Vec<String>> {
@@ -235,7 +202,7 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
             ComposeEnvironment::List(list) => list,
             ComposeEnvironment::Map(map) => map
                 .into_iter()
-                .filter_map(|(k, v)| v.map(|val| format!("{}={}", k, val)))
+                .filter_map(|(k, v): (String, Option<String>)| v.map(|val| format!("{}={}", k, val)))
                 .collect(),
         };
 
@@ -288,9 +255,9 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
         }
     });
 
-    let networks: Vec<String> = compose.networks.keys().cloned().collect();
+    let _networks: Vec<String> = compose.networks.keys().cloned().collect();
 
-    Ok(ParsedCompose { services, networks })
+    Ok(ParsedCompose { services, _networks })
 }
 
 /// Convert parsed service to container creation request

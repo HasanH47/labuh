@@ -1,4 +1,4 @@
-use crate::domain::models::system::SystemStats;
+use crate::domain::models::SystemStats;
 use crate::error::Result;
 use async_trait::async_trait;
 

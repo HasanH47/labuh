@@ -8,10 +8,6 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_expiration_hours: u64,
     pub caddy_admin_api: String,
-    #[allow(dead_code)]
-    pub caddy_config_path: String,
-    #[allow(dead_code)]
-    pub containerd_socket: String,
 }
 
 impl Config {
@@ -31,10 +27,6 @@ impl Config {
                 .unwrap_or(24),
             caddy_admin_api: std::env::var("CADDY_ADMIN_API")
                 .unwrap_or_else(|_| "http://localhost:2019".to_string()),
-            caddy_config_path: std::env::var("CADDY_CONFIG_PATH")
-                .unwrap_or_else(|_| "/etc/caddy/Caddyfile".to_string()),
-            containerd_socket: std::env::var("CONTAINERD_SOCKET")
-                .unwrap_or_else(|_| "/run/containerd/containerd.sock".to_string()),
         })
     }
 

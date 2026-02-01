@@ -6,7 +6,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::api::middleware::auth::CurrentUser;
-use crate::domain::models::team::{CreateTeamRequest, TeamResponse, TeamRole};
+use crate::domain::models::{CreateTeamRequest, TeamMember, TeamResponse, TeamRole};
 use crate::error::Result;
 use crate::usecase::team::TeamUsecase;
 use axum::Extension;
@@ -56,7 +56,7 @@ async fn get_members(
     State(usecase): State<Arc<TeamUsecase>>,
     Path(id): Path<String>,
     Extension(user): Extension<CurrentUser>,
-) -> Result<Json<Vec<crate::domain::models::team::TeamMember>>> {
+) -> Result<Json<Vec<TeamMember>>> {
     let members = usecase.get_members(&id, &user.id).await?;
     Ok(Json(members))
 }
@@ -65,7 +65,7 @@ async fn add_member(
     State(usecase): State<Arc<TeamUsecase>>,
     Path(id): Path<String>,
     Extension(user): Extension<CurrentUser>,
-    Json(payload): Json<crate::domain::models::team::TeamMember>,
+    Json(payload): Json<TeamMember>,
 ) -> Result<Json<()>> {
     usecase
         .add_member(

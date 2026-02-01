@@ -1,4 +1,4 @@
-use crate::domain::models::registry::RegistryCredential;
+use crate::domain::models::RegistryCredential;
 use crate::domain::registry_repository::RegistryRepository;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
@@ -27,18 +27,6 @@ impl RegistryRepository for SqliteRegistryRepository {
         Ok(credentials)
     }
 
-    async fn find_by_id(&self, id: &str, team_id: &str) -> Result<RegistryCredential> {
-        let credential = sqlx::query_as::<_, RegistryCredential>(
-            "SELECT * FROM registry_credentials WHERE id = ? AND team_id = ?",
-        )
-        .bind(id)
-        .bind(team_id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Credential not found".to_string()))?;
-
-        Ok(credential)
-    }
 
     async fn find_by_url(&self, team_id: &str, url: &str) -> Result<Option<RegistryCredential>> {
         let credential = sqlx::query_as::<_, RegistryCredential>(

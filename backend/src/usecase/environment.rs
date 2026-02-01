@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::environment_repository::EnvironmentRepository;
-use crate::domain::models::environment::{StackEnvVar, StackEnvVarResponse};
+use crate::domain::models::{StackEnvVar, StackEnvVarResponse};
 use crate::error::Result;
 
 pub struct EnvironmentUsecase {

@@ -24,8 +24,7 @@ use crate::api::rest::{
 };
 use crate::config::Config;
 use crate::services::{
-    AuthService, CaddyService, ContainerService, DeploymentLogService, DomainService,
-    RegistryService, StackService,
+    AuthService, CaddyService, ContainerService, DomainService,
 };
 
 #[tokio::main]
@@ -126,8 +125,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Create other services
     let domain_service = Arc::new(DomainService::new(pool.clone(), caddy_service.clone()));
-    let _registry_service = Arc::new(RegistryService::new(pool.clone()));
-    let _deployment_log_service = Arc::new(DeploymentLogService::new(pool.clone()));
 
     // Protected routes (require authentication)
     let mut protected_routes = Router::new().merge(protected_auth_routes());
@@ -219,12 +216,6 @@ async fn main() -> anyhow::Result<()> {
             scheduler.start().await;
         });
 
-        // Create stack service (Legacy)
-        let _stack_service = Arc::new(StackService::new(
-            pool.clone(),
-            container_svc.clone(),
-            Arc::new(crate::services::EnvironmentService::new(pool.clone())),
-        ));
 
         // Create deployment log components (New Architecture)
         let log_repo = Arc::new(
@@ -236,9 +227,6 @@ async fn main() -> anyhow::Result<()> {
             log_repo,
         ));
 
-        // Create deployment log service (Legacy)
-        let _deployment_log_service =
-            Arc::new(crate::services::DeploymentLogService::new(pool.clone()));
 
         protected_routes = protected_routes
             .nest("/teams", team_routes(team_usecase.clone()))

@@ -1,5 +1,4 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::error::{AppError, Result};
@@ -10,12 +9,6 @@ pub struct CaddyService {
     client: Client,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct CaddyRoute {
-    pub domain: String,
-    pub upstream: String,
-}
 
 impl CaddyService {
     pub fn new(admin_api_url: String) -> Self {
@@ -233,96 +226,7 @@ impl CaddyService {
         Ok(())
     }
 
-    /// Generate Caddyfile content from routes
-    #[allow(dead_code)]
-    pub fn generate_caddyfile(
-        &self,
-        routes: &[CaddyRoute],
-        api_upstream: &str,
-        frontend_upstream: &str,
-    ) -> String {
-        let mut content = String::from(
-            r#"# Labuh Platform - Auto-generated Caddyfile
-{
-    admin 0.0.0.0:2019
-}
 
-"#,
-        );
-
-        // Main site with API and frontend
-        content.push_str(&format!(
-            r#":80 {{
-    handle /api/* {{
-        reverse_proxy {}
-    }}
-
-    handle {{
-        reverse_proxy {}
-    }}
-}}
-
-"#,
-            api_upstream, frontend_upstream
-        ));
-
-        // Dynamic routes for deployed apps
-        for route in routes {
-            content.push_str(&format!(
-                r#"{} {{
-    reverse_proxy {}
-}}
-
-"#,
-                route.domain, route.upstream
-            ));
-        }
-
-        content
-    }
-
-    /// Reload Caddy configuration via Admin API
-    #[allow(dead_code)]
-    pub async fn reload_config(&self, caddyfile_content: &str) -> Result<()> {
-        // Convert Caddyfile to Caddy JSON config
-        let response = self
-            .client
-            .post(format!("{}/adapt", self.admin_api_url))
-            .header("Content-Type", "text/caddyfile")
-            .body(caddyfile_content.to_string())
-            .send()
-            .await
-            .map_err(|e| AppError::CaddyApi(e.to_string()))?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(AppError::CaddyApi(format!(
-                "Failed to adapt Caddyfile: {}",
-                error_text
-            )));
-        }
-
-        let json_config: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AppError::CaddyApi(e.to_string()))?;
-
-        // Load the JSON config
-        let load_response = self
-            .request_with_fallback(reqwest::Method::POST, "/load", Some(json_config))
-            .await?;
-
-        if !load_response.status().is_success() {
-            let error_text = load_response.text().await.unwrap_or_default();
-            return Err(AppError::CaddyApi(format!(
-                "Failed to load config: {}",
-                error_text
-            )));
-        }
-
-        tracing::info!("Caddy configuration reloaded successfully");
-        Ok(())
-    }
 
     /// Initialize a new route
     pub async fn add_route(&self, domain: &str, upstream: &str) -> Result<()> {
@@ -467,64 +371,4 @@ impl CaddyService {
         }
     }
 
-    /// Add a route with Basic Auth protection
-    #[allow(dead_code)]
-    pub async fn add_route_with_basic_auth(
-        &self,
-        domain: &str,
-        upstream: &str,
-        username: &str,
-        password_hash: &str,
-    ) -> Result<()> {
-        self.ensure_srv0().await?;
-
-        let route_config = serde_json::json!({
-            "match": [{
-                "host": [domain]
-            }],
-            "handle": [
-                {
-                    "handler": "authentication",
-                    "providers": {
-                        "http_basic": {
-                            "accounts": [
-                                {
-                                    "username": username,
-                                    "password": password_hash
-                                }
-                            ],
-                            "hash": {
-                                "algorithm": "bcrypt"
-                            }
-                        }
-                    }
-                },
-                {
-                    "handler": "reverse_proxy",
-                    "upstreams": [{
-                        "dial": upstream
-                    }]
-                }
-            ]
-        });
-
-        let response = self
-            .request_with_fallback(
-                reqwest::Method::POST,
-                "/config/apps/http/servers/srv0/routes",
-                Some(route_config),
-            )
-            .await?;
-
-        if !response.status().is_success() {
-            let error_text = response.status().to_string();
-            return Err(AppError::CaddyApi(format!(
-                "Failed to add route with basic auth: {}",
-                error_text
-            )));
-        }
-
-        tracing::info!("Added route with basic auth: {} -> {}", domain, upstream);
-        Ok(())
-    }
 }

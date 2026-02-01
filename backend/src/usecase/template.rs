@@ -1,4 +1,4 @@
-use crate::domain::models::template::{Template, TemplateEnv, TemplateResponse};
+use crate::domain::models::{Template, TemplateEnv, TemplateResponse};
 use crate::domain::TemplateRepository;
 use crate::error::{AppError, Result};
 use std::sync::Arc;

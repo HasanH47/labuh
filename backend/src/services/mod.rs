@@ -1,19 +1,11 @@
 pub mod auth;
 pub mod caddy;
 pub mod container;
-pub mod deployment_log;
 pub mod domain;
-pub mod environment;
 pub mod network;
-pub mod registry;
-pub mod stack;
 
 pub use auth::AuthService;
 pub use caddy::CaddyService;
 pub use container::ContainerService;
-pub use deployment_log::DeploymentLogService;
 pub use domain::DomainService;
-pub use environment::EnvironmentService;
 pub use network::NetworkService;
-pub use registry::RegistryService;
-pub use stack::StackService;

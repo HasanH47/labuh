@@ -6,7 +6,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::compose::{parse_compose, service_to_container_request};
-use crate::domain::models::Stack;
+use crate::domain::models::*;
 use crate::domain::resource_repository::ResourceRepository;
 use crate::domain::runtime::RuntimePort;
 use crate::domain::stack_repository::StackRepository;
@@ -24,7 +24,7 @@ pub struct StackUsecase {
     resource_repo: Arc<dyn ResourceRepository>,
     team_repo: Arc<dyn TeamRepository>,
     git_service: Arc<crate::infrastructure::git::GitService>,
-    build_log_tx: tokio::sync::broadcast::Sender<crate::domain::models::stack::BuildLogMessage>,
+    build_log_tx: tokio::sync::broadcast::Sender<BuildLogMessage>,
 }
 
 impl StackUsecase {
@@ -51,7 +51,7 @@ impl StackUsecase {
 
     pub fn subscribe_build_logs(
         &self,
-    ) -> tokio::sync::broadcast::Receiver<crate::domain::models::stack::BuildLogMessage> {
+    ) -> tokio::sync::broadcast::Receiver<BuildLogMessage> {
         self.build_log_tx.subscribe()
     }
 
@@ -270,7 +270,7 @@ impl StackUsecase {
                             Ok(log) => {
                                 tracing::debug!("Build [{}]: {}", service.name, log);
                                 let _ = self.build_log_tx.send(
-                                    crate::domain::models::stack::BuildLogMessage {
+                                    BuildLogMessage {
                                         stack_id: stack.id.clone(),
                                         service: service.name.clone(),
                                         message: log,
@@ -281,7 +281,7 @@ impl StackUsecase {
                             Err(e) => {
                                 tracing::error!("Build error [{}]: {}", service.name, e);
                                 let _ = self.build_log_tx.send(
-                                    crate::domain::models::stack::BuildLogMessage {
+                                    BuildLogMessage {
                                         stack_id: stack.id.clone(),
                                         service: service.name.clone(),
                                         message: e.to_string(),
@@ -498,7 +498,7 @@ impl StackUsecase {
         &self,
         id: &str,
         user_id: &str,
-    ) -> Result<crate::domain::models::stack::StackHealth> {
+    ) -> Result<StackHealth> {
         let stack = self.get_stack(id, user_id).await?;
         let containers = self.get_stack_containers(&stack.id).await?;
 
@@ -523,7 +523,7 @@ impl StackUsecase {
             "stopped".to_string()
         };
 
-        Ok(crate::domain::models::stack::StackHealth {
+        Ok(StackHealth {
             status,
             total,
             running,
@@ -531,7 +531,7 @@ impl StackUsecase {
             unhealthy,
             containers: containers
                 .into_iter()
-                .map(|c| crate::domain::models::stack::ContainerHealth {
+                .map(|c| ContainerHealth {
                     id: c.id,
                     name: c.names.first().cloned().unwrap_or_default(),
                     state: c.state,
@@ -546,7 +546,7 @@ impl StackUsecase {
         id: &str,
         user_id: &str,
         tail: Option<usize>,
-    ) -> Result<Vec<crate::domain::models::stack::StackLogEntry>> {
+    ) -> Result<Vec<StackLogEntry>> {
         let stack = self.get_stack(id, user_id).await?;
         let containers = self.get_stack_containers(&stack.id).await?;
 
@@ -562,7 +562,7 @@ impl StackUsecase {
             match self.runtime.get_logs(&container.id, tail_count).await {
                 Ok(logs) => {
                     for line in logs {
-                        all_logs.push(crate::domain::models::stack::StackLogEntry {
+                        all_logs.push(StackLogEntry {
                             container: container_name.clone(),
                             message: line,
                         });

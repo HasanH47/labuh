@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::team::{Team, TeamMember, TeamRole};
+use crate::domain::models::{Team, TeamMember, TeamRole};
 use crate::domain::TeamRepository;
 use crate::error::Result;
 

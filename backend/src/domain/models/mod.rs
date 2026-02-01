@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 pub mod deployment_log;
 pub mod domain;
 pub mod environment;
@@ -10,14 +9,17 @@ pub mod team;
 pub mod template;
 pub mod user;
 
-pub use deployment_log::{CreateDeploymentLog, DeploymentLog, DeploymentLogResponse};
+pub use deployment_log::{DeploymentLog, DeploymentLogResponse};
 pub use domain::{CreateDomain, Domain, DomainResponse};
 pub use environment::{
-    BulkSetEnvVarRequest, EnvVarItem, SetEnvVarRequest, StackEnvVar, StackEnvVarResponse,
+    BulkSetEnvVarRequest, SetEnvVarRequest, StackEnvVar, StackEnvVarResponse,
 };
 pub use registry::{CreateRegistryCredential, RegistryCredential, RegistryCredentialResponse};
-pub use resource::{ContainerResource, ResourceMetric, UpdateResourceRequest};
-pub use stack::{CreateStack, Stack, StackHealth, StackLogEntry, StackResponse};
+pub use resource::{ContainerResource, ResourceMetric};
+pub use stack::{
+    BuildLogMessage, ContainerHealth, CreateStack, Stack, StackBackup, StackHealth,
+    StackLogEntry, StackResponse,
+};
 pub use system::{LoadAverage, SystemStats};
 pub use team::{CreateTeamRequest, Team, TeamMember, TeamResponse, TeamRole};
 pub use template::{Template, TemplateEnv, TemplateResponse};

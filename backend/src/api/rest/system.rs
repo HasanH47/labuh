@@ -1,4 +1,4 @@
-use crate::domain::models::system::SystemStats;
+use crate::domain::models::{LoadAverage, SystemStats};
 use crate::usecase::system::SystemUsecase;
 use axum::{extract::State, routing::get, Json, Router};
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub async fn get_system_stats(State(usecase): State<Arc<SystemUsecase>>) -> Json
         disk_available_bytes: 0,
         disk_used_percent: 0.0,
         uptime_seconds: 0,
-        load_average: crate::domain::models::LoadAverage {
+        load_average: LoadAverage {
             one: 0.0,
             five: 0.0,
             fifteen: 0.0,

@@ -1,4 +1,4 @@
-use crate::domain::models::environment::StackEnvVar;
+use crate::domain::models::StackEnvVar;
 use crate::error::Result;
 use async_trait::async_trait;
 

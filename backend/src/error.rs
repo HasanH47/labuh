@@ -4,14 +4,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[allow(dead_code)]
-    #[error("Authentication required")]
-    Unauthorized,
 
     #[error("Invalid credentials")]
     InvalidCredentials,
 
-    #[allow(dead_code)]
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
@@ -33,7 +29,6 @@ pub enum AppError {
     #[error("Hash error")]
     Hash,
 
-    #[allow(dead_code)]
     #[error("Internal server error: {0}")]
     Internal(String),
 
@@ -59,7 +54,6 @@ struct ErrorResponse {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, error_type, message) = match &self {
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
             AppError::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,
                 "invalid_credentials",

@@ -3,7 +3,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::domain::models::resource::{ContainerResource, ResourceMetric};
+use crate::domain::models::{ContainerResource, ResourceMetric};
 use crate::domain::resource_repository::ResourceRepository;
 use crate::error::Result;
 

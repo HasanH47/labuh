@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
-use crate::domain::models::resource::ResourceMetric;
+use crate::domain::models::ResourceMetric;
 use crate::domain::resource_repository::ResourceRepository;
 use crate::domain::runtime::RuntimePort;
 use crate::domain::stack_repository::StackRepository;

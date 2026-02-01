@@ -1,4 +1,4 @@
-use crate::domain::models::resource::{ContainerResource, ResourceMetric};
+use crate::domain::models::{ContainerResource, ResourceMetric};
 use crate::error::Result;
 use async_trait::async_trait;
 
