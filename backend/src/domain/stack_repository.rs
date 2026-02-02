@@ -6,7 +6,6 @@ use async_trait::async_trait;
 pub trait StackRepository: Send + Sync {
     async fn list_all(&self) -> Result<Vec<Stack>>;
     async fn list_by_team(&self, team_id: &str) -> Result<Vec<Stack>>;
-    async fn find_by_id(&self, id: &str, team_id: &str) -> Result<Stack>;
     async fn find_by_id_internal(&self, id: &str) -> Result<Stack>;
     async fn create(&self, stack: Stack) -> Result<Stack>;
     async fn update_status(&self, id: &str, status: &str) -> Result<()>;

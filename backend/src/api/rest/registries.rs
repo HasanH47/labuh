@@ -46,10 +46,12 @@ async fn add_credential(
 
 async fn remove_credential(
     State(usecase): State<Arc<RegistryUsecase>>,
-    Extension(_current_user): Extension<CurrentUser>,
-    Path((_team_id, id)): Path<(String, String)>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path((team_id, id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>> {
-    usecase.remove_credential(&id, &_team_id).await?;
+    usecase
+        .remove_credential(&id, &team_id, &current_user.id)
+        .await?;
     Ok(Json(serde_json::json!({ "status": "removed" })))
 }
 

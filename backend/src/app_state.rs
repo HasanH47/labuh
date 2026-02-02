@@ -148,22 +148,16 @@ impl AppState {
         let env_uc = Arc::new(EnvironmentUsecase::new(env_repo));
         self.env_usecase = Some(env_uc.clone());
 
-        let registry_repo = Arc::new(
-            crate::infrastructure::sqlite::registry::SqliteRegistryRepository::new(pool.clone()),
-        );
-        let registry_uc = Arc::new(RegistryUsecase::new(registry_repo));
-        self.registry_usecase = Some(registry_uc.clone());
-
-        let stack_repo = Arc::new(
-            crate::infrastructure::sqlite::stack::SqliteStackRepository::new(pool.clone()),
-        );
-        let runtime_adapter =
-            Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
-
         let team_repo =
             Arc::new(crate::infrastructure::sqlite::team::SqliteTeamRepository::new(pool.clone()));
         let team_uc = Arc::new(TeamUsecase::new(team_repo.clone()));
         self.team_usecase = Some(team_uc.clone());
+
+        let registry_repo = Arc::new(
+            crate::infrastructure::sqlite::registry::SqliteRegistryRepository::new(pool.clone()),
+        );
+        let registry_uc = Arc::new(RegistryUsecase::new(registry_repo, team_repo.clone()));
+        self.registry_usecase = Some(registry_uc.clone());
 
         let template_repo = Arc::new(
             crate::infrastructure::sqlite::template::SqliteTemplateRepository::new(pool.clone()),
@@ -178,6 +172,12 @@ impl AppState {
                 tracing::error!("Failed to seed default templates: {}", e);
             }
         });
+
+        let stack_repo = Arc::new(
+            crate::infrastructure::sqlite::stack::SqliteStackRepository::new(pool.clone()),
+        );
+        let runtime_adapter =
+            Arc::new(crate::infrastructure::docker::runtime::DockerRuntimeAdapter::new().await?);
 
         let resource_repo = Arc::new(
             crate::infrastructure::sqlite::resource::SqliteResourceRepository::new(pool.clone()),

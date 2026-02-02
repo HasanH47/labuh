@@ -9,20 +9,29 @@ use crate::error::{AppError, Result};
 
 pub struct RegistryUsecase {
     repo: Arc<dyn RegistryRepository>,
+    team_repo: Arc<dyn crate::domain::TeamRepository>,
 }
 
 impl RegistryUsecase {
-    pub fn new(repo: Arc<dyn RegistryRepository>) -> Self {
-        Self { repo }
+    pub fn new(
+        repo: Arc<dyn RegistryRepository>,
+        team_repo: Arc<dyn crate::domain::TeamRepository>,
+    ) -> Self {
+        Self { repo, team_repo }
     }
 
     pub async fn list_credentials(
         &self,
         team_id: &str,
-        _user_id: &str,
+        user_id: &str,
     ) -> Result<Vec<RegistryCredentialResponse>> {
-        // TODO: Pass team_repo to check membership if needed,
-        // but for now we assume the caller verified permission or we'll add it.
+        // Verify team membership
+        let _role = self
+            .team_repo
+            .get_user_role(team_id, user_id)
+            .await?
+            .ok_or(AppError::Forbidden("Access denied".to_string()))?;
+
         let creds = self.repo.list_by_team(team_id).await?;
         Ok(creds.into_iter().map(Into::into).collect())
     }
@@ -36,6 +45,13 @@ impl RegistryUsecase {
         username: &str,
         password: &str,
     ) -> Result<RegistryCredentialResponse> {
+        // Verify team membership
+        let _role = self
+            .team_repo
+            .get_user_role(team_id, user_id)
+            .await?
+            .ok_or(AppError::Forbidden("Access denied".to_string()))?;
+
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let password_encrypted = BASE64.encode(password.as_bytes());
@@ -56,7 +72,14 @@ impl RegistryUsecase {
         Ok(saved.into())
     }
 
-    pub async fn remove_credential(&self, id: &str, team_id: &str) -> Result<()> {
+    pub async fn remove_credential(&self, id: &str, team_id: &str, user_id: &str) -> Result<()> {
+        // Verify team membership
+        let _role = self
+            .team_repo
+            .get_user_role(team_id, user_id)
+            .await?
+            .ok_or(AppError::Forbidden("Access denied".to_string()))?;
+
         self.repo.delete(id, team_id).await
     }
 

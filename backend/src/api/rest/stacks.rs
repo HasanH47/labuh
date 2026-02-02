@@ -164,9 +164,10 @@ async fn build_stack(
 
 async fn redeploy_stack(
     State(usecase): State<Arc<StackUsecase>>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
+    let _stack = usecase.get_stack(&id, &current_user.id).await?;
     let _: () = usecase.redeploy_stack(&id).await?;
     Ok(Json(serde_json::json!({ "status": "redeployed" })))
 }

@@ -817,8 +817,8 @@ impl StackUsecase {
             .get("labuh.stack.id")
             .ok_or_else(|| AppError::Forbidden("Container not managed by Labuh".to_string()))?;
 
-        // Verify stack ownership
-        self.repo.find_by_id(stack_id, user_id).await?;
+        // Verify stack ownership (which checks team membership)
+        self.get_stack(stack_id, user_id).await?;
 
         Ok(container)
     }

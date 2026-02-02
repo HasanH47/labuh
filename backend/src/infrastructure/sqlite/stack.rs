@@ -36,17 +36,6 @@ impl StackRepository for SqliteStackRepository {
         Ok(stacks)
     }
 
-    async fn find_by_id(&self, id: &str, team_id: &str) -> Result<Stack> {
-        let stack = sqlx::query_as::<_, Stack>("SELECT * FROM stacks WHERE id = ? AND team_id = ?")
-            .bind(id)
-            .bind(team_id)
-            .fetch_optional(&self.pool)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Stack not found".to_string()))?;
-
-        Ok(stack)
-    }
-
     async fn find_by_id_internal(&self, id: &str) -> Result<Stack> {
         let stack = sqlx::query_as::<_, Stack>("SELECT * FROM stacks WHERE id = ?")
             .bind(id)
