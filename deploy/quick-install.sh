@@ -70,6 +70,31 @@ detect_os() {
     fi
 
     echo -e "${GREEN}✓ Detected OS: $OS $OS_VERSION${NC}"
+
+    # Map for Docker repo URL
+    case $OS in
+        ubuntu|pop|mint|neon)
+            DOCKER_OS="ubuntu"
+            ;;
+        debian|kali|raspbian)
+            DOCKER_OS="debian"
+            ;;
+        fedora)
+            DOCKER_OS="fedora"
+            ;;
+        centos|rhel)
+            DOCKER_OS="centos"
+            ;;
+        *)
+            if [[ "$ID_LIKE" == *"ubuntu"* ]]; then
+                DOCKER_OS="ubuntu"
+            elif [[ "$ID_LIKE" == *"debian"* ]]; then
+                DOCKER_OS="debian"
+            else
+                DOCKER_OS="$OS"
+            fi
+            ;;
+    esac
 }
 
 # Detect architecture
@@ -90,20 +115,33 @@ detect_arch() {
     echo -e "${GREEN}✓ Architecture: $ARCH${NC}"
 }
 
+# Install essential dependencies
+install_dependencies() {
+    echo -e "${YELLOW}Installing base dependencies...${NC}"
+
+    case $OS in
+        ubuntu|debian)
+            apt-get update
+            apt-get install -y openssl curl ca-certificates tar gzip gnupg2 lsb-release
+            ;;
+        fedora|rhel|centos)
+            dnf install -y openssl curl ca-certificates tar gzip gnupg2
+            ;;
+        *)
+            echo -e "${YELLOW}Warning: OS $OS not explicitly supported for dependency auto-install.${NC}"
+            echo -e "Ensuring openssl and curl are available..."
+            if ! command -v openssl &> /dev/null || ! command -v curl &> /dev/null; then
+                echo -e "${RED}Error: Required tools (openssl, curl) missing. Please install them manually.${NC}"
+                exit 1
+            fi
+            ;;
+    esac
+    echo -e "${GREEN}✓ Base dependencies installed${NC}"
+}
+
 # Check if Docker is installed
 check_docker() {
     if command -v docker &> /dev/null; then
-        DOCKER_VERSION=$(docker --version)
-        echo -e "${GREEN}✓ Docker found: $DOCKER_VERSION${NC}"
-        return 0
-    fi
-    return 1
-}
-
-# Check if containerd is installed
-check_containerd() {
-    if command -v containerd &> /dev/null || [ -S /run/containerd/containerd.sock ]; then
-        echo -e "${GREEN}✓ containerd found${NC}"
         return 0
     fi
     return 1
@@ -114,13 +152,17 @@ install_docker() {
     echo -e "${YELLOW}Installing Docker...${NC}"
 
     case $OS in
-        ubuntu|debian)
+        ubuntu|debian|kali|raspbian|pop|mint|neon)
             apt-get update
-            apt-get install -y ca-certificates curl gnupg
+            apt-get install -y ca-certificates curl gnupg lsb-release
             install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            curl -fsSL https://download.docker.com/linux/$DOCKER_OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
             chmod a+r /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+            # Use VERSION_CODENAME if available, fallback to lsb_release
+            CODENAME=${VERSION_CODENAME:-$(lsb_release -cs)}
+
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$DOCKER_OS $CODENAME stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
             apt-get update
             apt-get install -y docker-ce docker-ce-cli containerd.io
             ;;
@@ -140,57 +182,25 @@ install_docker() {
     echo -e "${GREEN}✓ Docker installed and started${NC}"
 }
 
-# Install containerd only
-install_containerd() {
-    echo -e "${YELLOW}Installing containerd...${NC}"
-
-    case $OS in
-        ubuntu|debian)
-            apt-get update
-            apt-get install -y containerd
-            ;;
-        fedora|rhel|centos)
-            dnf install -y containerd
-            ;;
-        *)
-            echo -e "${RED}Unsupported OS for containerd auto-install. Please install manually.${NC}"
-            exit 1
-            ;;
-    esac
-
-    # Install nerdctl for Docker-compatible CLI
-    echo -e "${YELLOW}Installing nerdctl (Docker-compatible CLI for containerd)...${NC}"
-    NERDCTL_VERSION="1.7.0"
-    curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-${ARCH}.tar.gz" -o /tmp/nerdctl.tar.gz
-    tar -xzf /tmp/nerdctl.tar.gz -C /usr/local/bin
-    rm /tmp/nerdctl.tar.gz
-
-    systemctl enable containerd
-    systemctl start containerd
-    echo -e "${GREEN}✓ containerd and nerdctl installed${NC}"
-}
-
-# Prompt for runtime selection
-select_runtime() {
+# Prompt for runtime selection (simplified for Docker)
+ensure_runtime() {
     if [[ -n "$RUNTIME" ]]; then
         return
     fi
 
-    echo ""
-    echo "Select container runtime:"
-    echo "  1) Docker (recommended, easiest setup)"
-    echo "  2) containerd (lightweight, minimal overhead)"
-    echo ""
-    read -p "Enter choice [1-2]: " choice
+    if check_docker; then
+        RUNTIME="docker"
+        echo -e "${GREEN}✓ Docker is already installed${NC}"
+        return
+    fi
 
-    case $choice in
-        1) RUNTIME="docker" ;;
-        2) RUNTIME="containerd" ;;
-        *)
-            echo -e "${RED}Invalid choice${NC}"
-            exit 1
-            ;;
-    esac
+    echo ""
+    echo -e "${YELLOW}Docker is required for Labuh but not found.${NC}"
+    echo "This script will now install Docker CE automatically."
+    echo ""
+
+    install_docker
+    RUNTIME="docker"
 }
 
 # Download and install Labuh binary
@@ -314,39 +324,11 @@ EOF
 main() {
     detect_os
     detect_arch
+    install_dependencies
 
     echo ""
     echo "Checking container runtime..."
-
-    # Check existing installations
-    HAS_DOCKER=false
-    HAS_CONTAINERD=false
-
-    if check_docker; then
-        HAS_DOCKER=true
-    fi
-
-    if check_containerd; then
-        HAS_CONTAINERD=true
-    fi
-
-    # If no runtime, install one
-    if [[ "$HAS_DOCKER" == false && "$HAS_CONTAINERD" == false ]]; then
-        select_runtime
-
-        if [[ "$RUNTIME" == "docker" ]]; then
-            install_docker
-        else
-            install_containerd
-        fi
-    else
-        if [[ "$HAS_DOCKER" == true ]]; then
-            RUNTIME="docker"
-        else
-            RUNTIME="containerd"
-        fi
-        echo -e "${GREEN}Using existing $RUNTIME installation${NC}"
-    fi
+    ensure_runtime
 
     # Install Labuh
     install_labuh
