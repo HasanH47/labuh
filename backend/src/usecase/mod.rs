@@ -10,3 +10,4 @@ pub mod stack;
 pub mod system;
 pub mod team;
 pub mod template;
+pub mod auth;

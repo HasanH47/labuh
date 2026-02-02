@@ -12,6 +12,7 @@ pub mod stack_repository;
 pub mod system;
 pub mod team_repository;
 pub mod template_repository;
+pub mod user_repository;
 
 pub use team_repository::TeamRepository;
 pub use template_repository::TemplateRepository;

@@ -7,3 +7,4 @@ pub mod resource;
 pub mod stack;
 pub mod team;
 pub mod template;
+pub mod user;

@@ -8,8 +8,8 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::services::auth::Claims;
-use crate::services::AuthService;
+use crate::infrastructure::auth::jwt::Claims;
+use crate::usecase::auth::AuthUsecase;
 
 #[derive(Clone)]
 pub struct CurrentUser {
@@ -35,7 +35,7 @@ pub struct AuthError {
 }
 
 pub async fn auth_middleware(
-    State(auth_service): State<Arc<AuthService>>,
+    State(auth_usecase): State<Arc<AuthUsecase>>,
     mut request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, Json<AuthError>)> {
@@ -66,10 +66,10 @@ pub async fn auth_middleware(
         }
     };
 
-    match auth_service.verify_token(token) {
+    match auth_usecase.verify_token(token) {
         Ok(claims) => {
             // Verify user still exists in database
-            match auth_service.get_user_by_id(&claims.sub).await {
+            match auth_usecase.get_user_by_id(&claims.sub).await {
                 Ok(_) => {
                     let current_user = CurrentUser::from(claims);
                     request.extensions_mut().insert(current_user);

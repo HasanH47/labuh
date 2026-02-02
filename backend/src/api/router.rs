@@ -48,7 +48,7 @@ fn create_public_routes(state: &AppState) -> Router {
     Router::new()
         .nest("/api", health_routes())
         .nest("/api/system", system_routes(state.system_usecase.clone()))
-        .nest("/api/auth", auth_routes(state.auth_service.clone()))
+        .nest("/api/auth", auth_routes(state.auth_usecase.clone()))
 }
 
 fn create_webhook_routes(state: &AppState) -> Option<Router> {
@@ -103,7 +103,7 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
             .nest(
                 "/images",
                 image_routes(
-                    state.container_service.as_ref().unwrap().clone(),
+                    state.runtime.clone(),
                     registry_uc.clone(),
                 ),
             )
@@ -123,7 +123,7 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
     }
 
     routes.layer(axum_middleware::from_fn_with_state(
-        state.auth_service.clone(),
+        state.auth_usecase.clone(),
         auth_middleware,
     ))
 }

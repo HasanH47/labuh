@@ -8,13 +8,12 @@ use std::sync::Arc;
 
 use crate::api::middleware::auth::CurrentUser;
 use crate::error::Result;
-use crate::services::container::{ImageInfo, ImageInspect};
-use crate::services::ContainerService;
+use crate::domain::runtime::{ImageInfo, ImageInspect, RuntimePort};
 use crate::usecase::registry::RegistryUsecase;
 
 #[derive(Clone)]
 pub struct ImageState {
-    pub container_service: Arc<ContainerService>,
+    pub runtime: Arc<dyn RuntimePort>,
     pub registry_usecase: Arc<RegistryUsecase>,
 }
 
@@ -25,7 +24,7 @@ pub struct PullImageRequest {
 }
 
 async fn list_images(State(state): State<ImageState>) -> Result<Json<Vec<ImageInfo>>> {
-    let images = state.container_service.list_images().await?;
+    let images = state.runtime.list_images().await?;
     Ok(Json(images))
 }
 
@@ -33,7 +32,7 @@ async fn inspect_image(
     State(state): State<ImageState>,
     Path(id): Path<String>,
 ) -> Result<Json<ImageInspect>> {
-    let inspect = state.container_service.inspect_image(&id).await?;
+    let inspect = state.runtime.inspect_image(&id).await?;
     Ok(Json(inspect))
 }
 
@@ -47,8 +46,8 @@ async fn pull_image(
         .get_credentials_for_image(&user.id, &request.team_id, &request.image)
         .await?;
     state
-        .container_service
-        .pull_image_with_auth(&request.image, creds)
+        .runtime
+        .pull_image(&request.image, creds)
         .await?;
     Ok(Json(
         serde_json::json!({ "status": "pulled", "image": request.image }),
@@ -59,16 +58,16 @@ async fn remove_image(
     State(state): State<ImageState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    state.container_service.remove_image(&id, false).await?;
+    state.runtime.remove_image(&id, false).await?;
     Ok(Json(serde_json::json!({ "status": "removed" })))
 }
 
 pub fn image_routes(
-    container_service: Arc<ContainerService>,
+    runtime: Arc<dyn RuntimePort>,
     registry_usecase: Arc<RegistryUsecase>,
 ) -> Router {
     let state = ImageState {
-        container_service,
+        runtime,
         registry_usecase,
     };
     Router::new()

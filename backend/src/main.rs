@@ -5,7 +5,6 @@ mod db;
 mod domain;
 mod error;
 mod infrastructure;
-mod services;
 mod usecase;
 
 use std::sync::Arc;

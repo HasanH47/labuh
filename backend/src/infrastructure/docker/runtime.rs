@@ -76,12 +76,16 @@ impl RuntimePort for DockerRuntimeAdapter {
 
         if let Some(ports) = config.ports {
             for port_pair in ports {
-                // simple "host:container" or "container"
+                // Supports:
+                // - "80" -> Container 80
+                // - "80:80" -> Host 80:Container 80 (0.0.0.0)
+                // - "127.0.0.1:80:80" -> Host 80:Container 80 (127.0.0.1)
+
                 let parts: Vec<&str> = port_pair.split(':').collect();
-                let (host_port, container_port) = if parts.len() == 2 {
-                    (Some(parts[0].to_string()), parts[1].to_string())
-                } else {
-                    (None, parts[0].to_string())
+                let (host_ip, host_port, container_port) = match parts.len() {
+                    3 => (Some(parts[0].to_string()), Some(parts[1].to_string()), parts[2].to_string()),
+                    2 => (Some("0.0.0.0".to_string()), Some(parts[0].to_string()), parts[1].to_string()),
+                    _ => (None, None, parts[0].to_string()),
                 };
 
                 let port_key = if container_port.contains('/') {
@@ -96,7 +100,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                     port_bindings.insert(
                         port_key,
                         Some(vec![PortBinding {
-                            host_ip: Some("0.0.0.0".to_string()),
+                            host_ip: host_ip.or(Some("0.0.0.0".to_string())),
                             host_port: Some(hp),
                         }]),
                     );
@@ -107,6 +111,22 @@ impl RuntimePort for DockerRuntimeAdapter {
         // Build volume bindings
         let binds: Option<Vec<String>> = config.volumes;
 
+        // Build restart policy
+        let restart_policy = config.restart_policy.map(|p| {
+            use bollard::models::{RestartPolicy, RestartPolicyNameEnum};
+            let name = match p.to_lowercase().as_str() {
+                "always" => RestartPolicyNameEnum::ALWAYS,
+                "unless-stopped" => RestartPolicyNameEnum::UNLESS_STOPPED,
+                "on-failure" => RestartPolicyNameEnum::ON_FAILURE,
+                "no" => RestartPolicyNameEnum::NO,
+                _ => RestartPolicyNameEnum::NO,
+            };
+            RestartPolicy {
+                name: Some(name),
+                maximum_retry_count: None,
+            }
+        });
+
         let host_config = HostConfig {
             port_bindings: if port_bindings.is_empty() {
                 None
@@ -116,12 +136,16 @@ impl RuntimePort for DockerRuntimeAdapter {
             binds,
             memory: config.memory_limit,
             nano_cpus: config.cpu_limit.map(|c| (c * 1e9) as i64),
+            network_mode: config.network_mode,
+            extra_hosts: config.extra_hosts,
+            restart_policy,
             ..Default::default()
         };
 
         let bollard_config = Config {
             image: Some(config.image),
             env: config.env,
+            cmd: config.cmd,
             exposed_ports: if exposed_ports.is_empty() {
                 None
             } else {
@@ -424,5 +448,123 @@ impl RuntimePort for DockerRuntimeAdapter {
             .start_exec(exec_id, Some(options))
             .await
             .map_err(|e| AppError::ContainerRuntime(e.to_string()))
+    }
+
+    async fn list_images(&self) -> Result<Vec<crate::domain::runtime::ImageInfo>> {
+        use bollard::image::ListImagesOptions;
+        let options = ListImagesOptions::<String> {
+            all: false,
+            ..Default::default()
+        };
+
+        let images = self
+            .docker
+            .list_images(Some(options))
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(images
+            .into_iter()
+            .map(|i| crate::domain::runtime::ImageInfo {
+                id: i.id,
+                repo_tags: i.repo_tags,
+                size: i.size,
+                created: i.created,
+            })
+            .collect())
+    }
+
+    async fn remove_image(&self, id: &str, force: bool) -> Result<()> {
+        use bollard::image::RemoveImageOptions;
+        let options = RemoveImageOptions {
+            force,
+            noprune: false,
+        };
+
+        self.docker
+            .remove_image(id, Some(options), None)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn inspect_image(&self, id: &str) -> Result<crate::domain::runtime::ImageInspect> {
+         let image = self
+            .docker
+            .inspect_image(id)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        let config = image.config.unwrap_or_default();
+
+        // Extract exposed ports
+        let exposed_ports: Vec<String> = config
+            .exposed_ports
+            .map(|ports| ports.keys().cloned().collect())
+            .unwrap_or_default();
+
+        // Extract environment variables
+        let env_vars: Vec<String> = config.env.unwrap_or_default();
+
+        // Extract working directory
+        let working_dir = config.working_dir.unwrap_or_default();
+
+        // Extract entrypoint and cmd
+        let entrypoint = config.entrypoint.unwrap_or_default();
+        let cmd = config.cmd.unwrap_or_default();
+
+        Ok(crate::domain::runtime::ImageInspect {
+            id: image.id.unwrap_or_default(),
+            repo_tags: image.repo_tags.unwrap_or_default(),
+            exposed_ports,
+            env_vars,
+            working_dir,
+            entrypoint,
+            cmd,
+            created: image.created.unwrap_or_default(),
+            size: image.size.unwrap_or(0),
+        })
+    }
+
+    async fn ensure_network(&self, name: &str) -> Result<()> {
+        use bollard::network::CreateNetworkOptions;
+
+        // Check if exists
+        match self.docker.inspect_network::<String>(name, None).await {
+            Ok(_) => return Ok(()),
+            Err(_) => {},
+        }
+
+        let options = CreateNetworkOptions {
+            name,
+            driver: "bridge",
+            ..Default::default()
+        };
+
+        self.docker.create_network(options).await.map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn connect_network(&self, container: &str, network: &str) -> Result<()> {
+        use bollard::network::ConnectNetworkOptions;
+        use bollard::models::EndpointSettings;
+
+         let config = ConnectNetworkOptions {
+            container,
+            endpoint_config: EndpointSettings::default(),
+        };
+
+        match self.docker.connect_network(network, config).await {
+             Ok(_) => Ok(()),
+             Err(e) => {
+                 let err_str = e.to_string();
+                 if err_str.contains("403") || err_str.contains("already exists") {
+                     Ok(())
+                 } else {
+                     Err(crate::error::AppError::ContainerRuntime(err_str))
+                 }
+             }
+        }
     }
 }

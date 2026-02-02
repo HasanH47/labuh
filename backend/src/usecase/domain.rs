@@ -2,7 +2,7 @@ use crate::domain::domain_repository::DomainRepository;
 use crate::domain::models::domain::{Domain, DomainProvider, DomainType};
 use crate::domain::stack_repository::StackRepository;
 use crate::error::{AppError, Result};
-use crate::services::CaddyService;
+use crate::infrastructure::caddy::client::CaddyClient;
 use crate::usecase::dns::DnsUsecase;
 use chrono::Utc;
 use std::sync::Arc;
@@ -11,7 +11,7 @@ use uuid::Uuid;
 pub struct DomainUsecase {
     domain_repo: Arc<dyn DomainRepository>,
     stack_repo: Arc<dyn StackRepository>,
-    caddy_service: Arc<CaddyService>,
+    caddy_client: Arc<CaddyClient>,
     dns_usecase: Arc<DnsUsecase>,
 }
 
@@ -29,13 +29,13 @@ impl DomainUsecase {
     pub fn new(
         domain_repo: Arc<dyn DomainRepository>,
         stack_repo: Arc<dyn StackRepository>,
-        caddy_service: Arc<CaddyService>,
+        caddy_client: Arc<CaddyClient>,
         dns_usecase: Arc<DnsUsecase>,
     ) -> Self {
         Self {
             domain_repo,
             stack_repo,
-            caddy_service,
+            caddy_client,
             dns_usecase,
         }
     }
@@ -124,7 +124,7 @@ impl DomainUsecase {
             let container_upstream =
                 format!("{}:{}", request.container_name, request.container_port);
             if let Err(e) = self
-                .caddy_service
+                .caddy_client
                 .add_route(&request.domain, &container_upstream)
                 .await
             {
@@ -185,7 +185,7 @@ impl DomainUsecase {
 
         // Remove from Caddy
         if matches!(domain_record.r#type, DomainType::Caddy) {
-            let _ = self.caddy_service.remove_route(&domain_record.domain).await;
+            let _ = self.caddy_client.remove_route(&domain_record.domain).await;
         }
 
         // Delete from database
@@ -243,7 +243,7 @@ impl DomainUsecase {
                 let container_upstream =
                     format!("{}:{}", domain.container_name, domain.container_port);
                 let _ = self
-                    .caddy_service
+                    .caddy_client
                     .add_route(&domain.domain, &container_upstream)
                     .await;
             }

@@ -312,6 +312,10 @@ pub fn service_to_container_request(
         labels: Some(labels),
         cpu_limit: None,
         memory_limit: None,
+        cmd: None,
+        network_mode: Some("labuh-network".to_string()),
+        extra_hosts: None,
+        restart_policy: Some("unless-stopped".to_string()),
     }
 }
 
