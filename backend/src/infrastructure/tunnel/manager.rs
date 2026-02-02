@@ -76,19 +76,4 @@ impl TunnelManager {
         Ok(())
     }
 
-    /// Stop and remove the tunnel container
-    pub async fn stop_tunnel(&self) -> Result<()> {
-        // Find ID first
-        let containers = self.runtime.list_containers(true).await?;
-         let existing = containers
-            .iter()
-            .find(|c| c.names.iter().any(|n| n.contains(TUNNEL_CONTAINER_NAME)));
-
-        if let Some(c) = existing {
-             let _ = self.runtime.stop_container(&c.id).await;
-             let _ = self.runtime.remove_container(&c.id, true).await;
-        }
-
-        Ok(())
-    }
 }

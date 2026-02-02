@@ -214,6 +214,19 @@
   > [!NOTE]
   > **Ingress Architecture**: Domains via DNS/cPanel will route through **Caddy** (Public IP 80/443), while Tunnel-based domains will route directly via the **cloudflared** container to app containers (Private/No Host Ports).
 
+### Phase 25: Advanced DNS & Tunnel Flexibility ✅
+
+- [x] **Refactor DNS Provider**
+  - [x] Flexible trait for creating arbitrary record types (A, CNAME, TXT, etc.)
+  - [x] Multi-zone support for Cloudflare (dynamic zone lookup)
+- [x] **Tunnel Manager Enhancements**
+  - [x] Activate tunnel via token during domain registration
+  - [x] Wired into Domain Usecase
+- [x] **Frontend Updates**
+  - [x] Advanced DNS toggle (custom Type/Content)
+  - [x] Tunnel Token input field
+  - [x] Exposure Type toggle (Caddy/Tunnel)
+
 ---
 
 ## 🏗️ Architecture Migration ✅

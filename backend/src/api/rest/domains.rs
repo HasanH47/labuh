@@ -87,7 +87,10 @@ async fn add_domain(
             container_port,
             provider,
             domain_type,
-            tunnel_id: request.tunnel_id,
+            tunnel_id: request.tunnel_id.clone(),
+            tunnel_token: request.tunnel_token.clone(),
+            dns_record_type: request.dns_record_type.clone(),
+            dns_record_content: request.dns_record_content.clone(),
         })
         .await?;
     Ok(Json(domain.into()))

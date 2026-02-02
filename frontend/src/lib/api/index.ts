@@ -233,6 +233,9 @@ export interface CreateDomain {
   provider?: DomainProvider;
   type?: DomainType;
   tunnel_id?: string;
+  tunnel_token?: string;
+  dns_record_type?: string;
+  dns_record_content?: string;
 }
 
 export interface DnsConfig {

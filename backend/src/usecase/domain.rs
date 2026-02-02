@@ -3,6 +3,7 @@ use crate::domain::models::domain::{Domain, DomainProvider, DomainType};
 use crate::domain::stack_repository::StackRepository;
 use crate::error::{AppError, Result};
 use crate::infrastructure::caddy::client::CaddyClient;
+use crate::infrastructure::tunnel::manager::TunnelManager;
 use crate::usecase::dns::DnsUsecase;
 use chrono::Utc;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ pub struct DomainUsecase {
     stack_repo: Arc<dyn StackRepository>,
     caddy_client: Arc<CaddyClient>,
     dns_usecase: Arc<DnsUsecase>,
+    tunnel_manager: Option<Arc<TunnelManager>>,
 }
 
 pub struct AddDomainRequest {
@@ -23,6 +25,9 @@ pub struct AddDomainRequest {
     pub provider: DomainProvider,
     pub domain_type: DomainType,
     pub tunnel_id: Option<String>,
+    pub tunnel_token: Option<String>,
+    pub dns_record_type: Option<String>,
+    pub dns_record_content: Option<String>,
 }
 
 impl DomainUsecase {
@@ -31,12 +36,14 @@ impl DomainUsecase {
         stack_repo: Arc<dyn StackRepository>,
         caddy_client: Arc<CaddyClient>,
         dns_usecase: Arc<DnsUsecase>,
+        tunnel_manager: Option<Arc<TunnelManager>>,
     ) -> Self {
         Self {
             domain_repo,
             stack_repo,
             caddy_client,
             dns_usecase,
+            tunnel_manager,
         }
     }
 
@@ -62,17 +69,33 @@ impl DomainUsecase {
             )));
         }
 
+        // 0. Ensure Tunnel if requested
+        if let Some(token) = &request.tunnel_token {
+            if let Some(tm) = &self.tunnel_manager {
+                tm.ensure_tunnel(token).await?;
+            }
+        }
+
         // 1. Provision DNS record if needed
         let dns_record_id = if !matches!(request.provider, DomainProvider::Custom) {
-            let target = match request.domain_type {
-                DomainType::Caddy => {
-                    std::env::var("LABUH_PUBLIC_IP").unwrap_or_else(|_| "127.0.0.1".to_string())
-                }
-                DomainType::Tunnel => {
-                    format!(
-                        "{}.cfargotunnel.com",
-                        request.tunnel_id.as_deref().unwrap_or("unknown")
-                    )
+            let (record_type, content) = if let (Some(t), Some(c)) = (
+                &request.dns_record_type,
+                &request.dns_record_content,
+            ) {
+                (t.clone(), c.clone())
+            } else {
+                match request.domain_type {
+                    DomainType::Caddy => {
+                        let ip = std::env::var("LABUH_PUBLIC_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+                         ("A".to_string(), ip)
+                    }
+                    DomainType::Tunnel => {
+                         let target = format!(
+                            "{}.cfargotunnel.com",
+                            request.tunnel_id.as_deref().unwrap_or("unknown")
+                        );
+                        ("CNAME".to_string(), target)
+                    }
                 }
             };
 
@@ -86,7 +109,7 @@ impl DomainUsecase {
                 .await?;
             Some(
                 provider_impl
-                    .create_record(&request.domain, &target)
+                    .create_record(&request.domain, &record_type, &content)
                     .await?,
             )
         } else {
@@ -152,7 +175,7 @@ impl DomainUsecase {
                     .get_provider(&stack.team_id, domain_record.provider.clone())
                     .await
                 {
-                    let _ = provider_impl.delete_record(record_id).await;
+                    let _ = provider_impl.delete_record(&domain_record.domain, record_id).await;
                 }
             }
         }
@@ -179,7 +202,7 @@ impl DomainUsecase {
                 .get_provider(&stack.team_id, domain_record.provider.clone())
                 .await
             {
-                let _ = provider_impl.delete_record(record_id).await;
+                let _ = provider_impl.delete_record(&domain_record.domain, record_id).await;
             }
         }
 

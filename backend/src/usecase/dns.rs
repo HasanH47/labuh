@@ -40,7 +40,6 @@ impl DnsUsecase {
 
                 Ok(Box::new(CloudflareProvider::new(
                     config.api_token,
-                    config.zone_id,
                 )))
             }
             DomainProvider::CPanel => Ok(Box::new(CPanelProvider::new())),

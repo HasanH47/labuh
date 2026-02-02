@@ -16,13 +16,6 @@ impl SqliteDomainRepository {
 
 #[async_trait]
 impl DomainRepository for SqliteDomainRepository {
-    async fn find_by_id(&self, id: &str) -> Result<Domain> {
-        let domain = sqlx::query_as::<_, Domain>("SELECT * FROM domains WHERE id = ?")
-            .bind(id)
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(domain)
-    }
 
     async fn find_by_stack_id(&self, stack_id: &str) -> Result<Vec<Domain>> {
         let domains = sqlx::query_as::<_, Domain>(
@@ -101,12 +94,4 @@ impl DomainRepository for SqliteDomainRepository {
         Ok(())
     }
 
-    async fn update_dns_record(&self, id: &str, dns_record_id: Option<String>) -> Result<()> {
-        sqlx::query("UPDATE domains SET dns_record_id = ? WHERE id = ?")
-            .bind(dns_record_id)
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
 }

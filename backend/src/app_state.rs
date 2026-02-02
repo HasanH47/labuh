@@ -194,24 +194,25 @@ impl AppState {
         let dns_uc = Arc::new(crate::usecase::dns::DnsUsecase::new(dns_config_repo));
         self.dns_usecase = Some(dns_uc.clone());
 
+        // Initialize Tunnel Manager
+        let tunnel_manager = Arc::new(TunnelManager::new(runtime.clone()));
+        self.tunnel_manager = Some(tunnel_manager.clone());
+
         let caddy_client = self.caddy_client.clone();
         let domain_uc = Arc::new(crate::usecase::domain::DomainUsecase::new(
             domain_repo,
             stack_repo,
             caddy_client,
             dns_uc,
+            Some(tunnel_manager),
         ));
         self.domain_usecase = Some(domain_uc.clone());
 
-        // Prepare Infrastructure (Caddy, Tunnel, Networks)
+        // Prepare Infrastructure (Caddy, Networks)
         // Ensure labuh-network
         if let Err(e) = runtime.ensure_network("labuh-network").await {
              tracing::error!("Failed to create labuh-network: {}", e);
         }
-
-        // Initialize Tunnel Manager
-        let tunnel_manager = Arc::new(TunnelManager::new(runtime.clone()));
-        self.tunnel_manager = Some(tunnel_manager);
 
         // Bootstrap Caddy
         if let Err(e) = self.caddy_client.bootstrap(&runtime).await {

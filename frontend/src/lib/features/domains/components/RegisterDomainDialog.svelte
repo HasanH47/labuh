@@ -47,6 +47,35 @@
         </Card.Header>
 
         <Card.Content class="space-y-4">
+            <div class="space-y-4">
+                <Label>Exposure Type</Label>
+                <div class="flex items-center gap-2 p-1 bg-muted rounded-lg">
+                    <button
+                        class="flex-1 py-1.5 text-sm font-medium rounded-md transition-all {ctrl.selectedType === 'Caddy' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                        onclick={() => ctrl.selectedType = 'Caddy'}
+                    >
+                        Public (Caddy)
+                    </button>
+                    <button
+                        class="flex-1 py-1.5 text-sm font-medium rounded-md transition-all {ctrl.selectedType === 'Tunnel' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                        onclick={() => ctrl.selectedType = 'Tunnel'}
+                    >
+                        Secure Tunnel
+                    </button>
+                </div>
+            </div>
+
+            {#if ctrl.selectedType === 'Tunnel'}
+                <div class="space-y-2 p-3 border rounded-md bg-blue-500/5 border-blue-500/20">
+                    <Label for="tunnel_token">Tunnel Token (Optional)</Label>
+                     <Input id="tunnel_token" placeholder="eyJh..." bind:value={ctrl.tunnelToken} />
+                    <p class="text-[10px] text-muted-foreground">
+                        Provide a Cloudflare Tunnel token to automatically start the tunnel agent.
+                        Leave empty if utilizing an existing tunnel.
+                    </p>
+                </div>
+            {/if}
+
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-2">
                     <Label>DNS Provider</Label>
@@ -89,6 +118,34 @@
                     <span class="text-muted-foreground">.{ctrl.selectedBaseDomain || "domain.com"}</span>
                 </div>
             </div>
+
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="advanced_dns" class="h-4 w-4 rounded border-gray-300" bind:checked={ctrl.isAdvancedDns} />
+                <Label for="advanced_dns" class="font-normal cursor-pointer">Advanced DNS Configuration</Label>
+            </div>
+
+            {#if ctrl.isAdvancedDns}
+                 <div class="grid grid-cols-3 gap-4 p-3 border rounded-md bg-muted/30">
+                    <div class="col-span-1 space-y-2">
+                        <Label>Type</Label>
+                        <Select.Root type="single" value={ctrl.dnsRecordType} onValueChange={(v) => v && (ctrl.dnsRecordType = v)}>
+                            <Select.Trigger>
+                                {ctrl.dnsRecordType}
+                            </Select.Trigger>
+                            <Select.Content>
+                                <Select.Item value="A">A</Select.Item>
+                                <Select.Item value="CNAME">CNAME</Select.Item>
+                                <Select.Item value="TXT">TXT</Select.Item>
+                                <Select.Item value="MX">MX</Select.Item>
+                            </Select.Content>
+                        </Select.Root>
+                    </div>
+                    <div class="col-span-2 space-y-2">
+                        <Label>Content</Label>
+                        <Input placeholder="1.2.3.4" bind:value={ctrl.dnsRecordContent} />
+                    </div>
+                 </div>
+            {/if}
 
             <hr class="my-4 border-dashed" />
 

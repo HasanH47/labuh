@@ -531,9 +531,8 @@ impl RuntimePort for DockerRuntimeAdapter {
         use bollard::network::CreateNetworkOptions;
 
         // Check if exists
-        match self.docker.inspect_network::<String>(name, None).await {
-            Ok(_) => return Ok(()),
-            Err(_) => {},
+        if self.docker.inspect_network::<String>(name, None).await.is_ok() {
+            return Ok(());
         }
 
         let options = CreateNetworkOptions {

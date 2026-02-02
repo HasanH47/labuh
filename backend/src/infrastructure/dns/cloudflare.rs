@@ -6,15 +6,13 @@ use serde_json;
 
 pub struct CloudflareProvider {
     api_token: String,
-    zone_id: String,
     client: reqwest::Client,
 }
 
 impl CloudflareProvider {
-    pub fn new(api_token: String, zone_id: String) -> Self {
+    pub fn new(api_token: String) -> Self {
         Self {
             api_token,
-            zone_id,
             client: reqwest::Client::new(),
         }
     }
@@ -22,17 +20,12 @@ impl CloudflareProvider {
 
 #[async_trait]
 impl DnsProvider for CloudflareProvider {
-    async fn create_record(&self, domain: &str, target: &str) -> Result<String> {
+    async fn create_record(&self, domain: &str, record_type: &str, content: &str) -> Result<String> {
+        let zone_id = self.get_zone_id(domain).await?;
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
-            self.zone_id
+            zone_id
         );
-
-        let record_type = if target.parse::<std::net::IpAddr>().is_ok() {
-            "A"
-        } else {
-            "CNAME"
-        };
 
         let response = self
             .client
@@ -41,7 +34,7 @@ impl DnsProvider for CloudflareProvider {
             .json(&serde_json::json!({
                 "type": record_type,
                 "name": domain,
-                "content": target,
+                "content": content,
                 "ttl": 1, // Auto
                 "proxied": false
             }))
@@ -69,10 +62,11 @@ impl DnsProvider for CloudflareProvider {
         Ok(id.to_string())
     }
 
-    async fn delete_record(&self, record_id: &str) -> Result<()> {
+    async fn delete_record(&self, domain: &str, record_id: &str) -> Result<()> {
+        let zone_id = self.get_zone_id(domain).await?;
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
-            self.zone_id, record_id
+            zone_id, record_id
         );
 
         let response = self
@@ -180,5 +174,35 @@ impl CloudflareProvider {
             .collect();
 
         Ok(zones)
+    }
+
+    /// Find the best matching zone for a domain (longest suffix match)
+    async fn get_zone_id(&self, domain: &str) -> Result<String> {
+        let zones = self.fetch_all_zones().await?;
+        let mut best_match: Option<CloudflareZone> = None;
+
+        for zone in zones {
+             // Check if domain ends with zone name (e.g. sub.example.com ends with example.com)
+             // We need to handle the root case carefully.
+             if domain == zone.name || domain.ends_with(&format!(".{}", zone.name)) {
+                 match &best_match {
+                     None => best_match = Some(zone),
+                     Some(current) => {
+                         // Pick the longer one (more specific)
+                         if zone.name.len() > current.name.len() {
+                             best_match = Some(zone);
+                         }
+                     }
+                 }
+             }
+        }
+
+        match best_match {
+            Some(z) => Ok(z.id),
+            None => Err(AppError::Validation(format!(
+                "No active Cloudflare zone found for domain: {}",
+                domain
+            ))),
+        }
     }
 }

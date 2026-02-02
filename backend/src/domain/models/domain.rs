@@ -41,6 +41,9 @@ pub struct CreateDomain {
     pub provider: Option<DomainProvider>,
     pub r#type: Option<DomainType>,
     pub tunnel_id: Option<String>,
+    pub tunnel_token: Option<String>,
+    pub dns_record_type: Option<String>,
+    pub dns_record_content: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

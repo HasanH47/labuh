@@ -34,6 +34,14 @@ export class DomainController {
   registrationLoading = $state(false);
   selectedRemoteRecord = $state<RemoteDnsRecord | null>(null);
 
+  // Advanced / Tunnel State
+  selectedType = $state("Caddy"); // Caddy | Tunnel
+  tunnelToken = $state("");
+  tunnelId = $state(""); // For CNAME target
+  isAdvancedDns = $state(false);
+  dnsRecordType = $state("A");
+  dnsRecordContent = $state("");
+
   async init() {
     await this.loadAll();
   }
@@ -206,7 +214,13 @@ export class DomainController {
         container_name: this.selectedContainer,
         container_port: this.selectedPort,
         provider: this.selectedProvider as any,
-        type: "Caddy",
+        type: this.selectedType as any,
+        tunnel_id: this.selectedType === "Tunnel" ? this.tunnelId : undefined,
+        tunnel_token: this.tunnelToken || undefined,
+        dns_record_type: this.isAdvancedDns ? this.dnsRecordType : undefined,
+        dns_record_content: this.isAdvancedDns
+          ? this.dnsRecordContent
+          : undefined,
       });
 
       if (res.data) {

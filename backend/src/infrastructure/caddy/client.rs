@@ -69,7 +69,7 @@ impl CaddyClient {
              // but we can trust it if it's running or inspect it.
              // Let's inspect to be safe if status is running.
              if c.state == "running" {
-                 let info = runtime.inspect_container(&c.id).await?;
+                 let _info = runtime.inspect_container(&c.id).await?;
                   // Check if port 2019 is bound (required for Admin API)
                  // Note: ContainerInfo from runtime might not have ports detail structure as bollard,
                  // checking generic validity.

@@ -15,13 +15,13 @@ impl CPanelProvider {
 
 #[async_trait]
 impl DnsProvider for CPanelProvider {
-    async fn create_record(&self, _domain: &str, _target: &str) -> Result<String> {
+    async fn create_record(&self, _domain: &str, _record_type: &str, _content: &str) -> Result<String> {
         Err(AppError::Internal(
             "cPanel provider not yet implemented".to_string(),
         ))
     }
 
-    async fn delete_record(&self, _record_id: &str) -> Result<()> {
+    async fn delete_record(&self, _domain: &str, _record_id: &str) -> Result<()> {
         Err(AppError::Internal(
             "cPanel provider not yet implemented".to_string(),
         ))
