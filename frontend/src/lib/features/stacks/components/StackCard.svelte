@@ -42,7 +42,7 @@
             <Square class="h-4 w-4" />
           </Button>
         {/if}
-        <Button variant="outline" size="icon" onclick={() => ctrl.removeStack(stack.id)} disabled={ctrl.actionLoading === stack.id}>
+        <Button variant="outline" size="icon" onclick={() => ctrl.requestRemove(stack.id)} disabled={ctrl.actionLoading === stack.id}>
           <Trash2 class="h-4 w-4 text-destructive" />
         </Button>
       {:else}

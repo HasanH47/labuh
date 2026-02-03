@@ -3,6 +3,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Image as ImageIcon, Trash2 } from '@lucide/svelte';
   import { activeTeam } from '$lib/stores';
+  import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
   import type { ImageController } from '../image-controller.svelte';
 
   let { ctrl = $bindable() } = $props<{ ctrl: ImageController }>();
@@ -57,7 +58,7 @@
               <Button
                 variant="outline"
                 size="icon"
-                onclick={() => ctrl.removeImage(image.id)}
+                onclick={() => ctrl.requestDelete(image.id)}
                 disabled={ctrl.actionLoading === image.id}
               >
                 <Trash2 class="h-4 w-4 text-destructive" />
@@ -68,4 +69,13 @@
       </div>
     </Card.Content>
   </Card.Root>
+
+  <ConfirmationDialog
+    bind:open={ctrl.showDeleteConfirm}
+    title="Delete Image"
+    description="Are you sure you want to delete this image? This action cannot be undone."
+    confirmText="Delete"
+    variant="destructive"
+    onConfirm={() => ctrl.confirmDelete()}
+  />
 {/if}

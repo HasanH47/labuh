@@ -10,6 +10,7 @@
 	import RegisterDomainDialog from '$lib/features/domains/components/RegisterDomainDialog.svelte';
 	import EditDnsDialog from '$lib/features/domains/components/EditDnsDialog.svelte';
 	import DiscoveredRecords from '$lib/features/domains/components/DiscoveredRecords.svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { formatDistanceToNow } from 'date-fns';
 
@@ -72,7 +73,7 @@
 									size="icon"
 									variant="ghost"
 									class="h-8 w-8 text-destructive hover:bg-destructive/10"
-									onclick={() => ctrl.removeDnsConfig(config.provider)}
+									onclick={() => ctrl.requestRemoveDnsConfig(config.provider)}
 								>
 									<Trash2 class="h-4 w-4" />
 								</Button>
@@ -235,7 +236,7 @@
                                         variant="ghost"
                                         size="icon"
                                         class="text-destructive h-8 w-8 hover:bg-destructive/10"
-                                        onclick={() => ctrl.removeDomain(domain.stack_id, domain.domain)}
+                                        onclick={() => ctrl.requestRemoveDomain(domain.stack_id, domain.domain)}
                                         title="Delete Domain"
                                     >
                                         <Trash2 class="h-4 w-4" />
@@ -257,3 +258,21 @@
 <DnsConfigDialog {ctrl} />
 <RegisterDomainDialog {ctrl} />
 <EditDnsDialog {ctrl} />
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveConfigConfirm}
+	title="Remove DNS Configuration"
+	description={`Are you sure you want to remove the ${ctrl.configToRemove} configuration? This will stop DNS automation for domains using this provider.`}
+	confirmText="Remove"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemoveDnsConfig()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveDomainConfirm}
+	title="Remove Domain"
+	description={`Are you sure you want to remove the domain "${ctrl.domainToRemove?.domain}"?`}
+	confirmText="Remove"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemoveDomain()}
+/>

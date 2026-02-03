@@ -10,6 +10,10 @@ export class ImageController {
   pulling = $state(false);
   actionLoading = $state<string | null>(null);
 
+  // UI States
+  showDeleteConfirm = $state(false);
+  imageToDelete = $state<string | null>(null);
+
   async init() {
     await this.loadImages();
   }
@@ -26,28 +30,59 @@ export class ImageController {
   async pullImage() {
     const team = get(activeTeam)?.team;
     if (!this.imageUrl || !team) return;
-    this.pulling = true;
-    const result = await api.images.pull(this.imageUrl, team.id);
-    if (result.data) {
-      toast.success(`Image ${this.imageUrl} pulled successfully`);
-      this.imageUrl = "";
-      await this.loadImages();
-    } else {
-      toast.error(result.message || result.error || "Failed to pull image");
+
+    // Validation: Enforce image:tag
+    if (!this.imageUrl.includes(":")) {
+      toast.error("Please specify a tag (e.g., nginx:latest)");
+      return;
     }
-    this.pulling = false;
+
+    this.pulling = true;
+    toast.info(`Starting to pull ${this.imageUrl}...`);
+
+    // We don't await this if we want it to be truly background,
+    // but the API call itself is slow.
+    // For now, we'll keep the await but the toast gives immediate feedback.
+    try {
+      const result = await api.images.pull(this.imageUrl, team.id);
+      if (result.data) {
+        toast.success(`Image ${this.imageUrl} pulled successfully`);
+        this.imageUrl = "";
+        await this.loadImages();
+      } else {
+        toast.error(result.message || result.error || "Failed to pull image");
+      }
+    } catch (err) {
+      toast.error("Network error during image pull");
+    } finally {
+      this.pulling = false;
+    }
   }
 
-  async removeImage(id: string) {
-    if (!confirm("Are you sure you want to delete this image?")) return;
+  requestDelete(id: string) {
+    this.imageToDelete = id;
+    this.showDeleteConfirm = true;
+  }
+
+  async confirmDelete() {
+    if (!this.imageToDelete) return;
+    const id = this.imageToDelete;
     this.actionLoading = id;
-    const result = await api.images.remove(id);
-    if (result.error) {
-      toast.error(result.message || result.error || "Failed to remove image");
-    } else {
-      toast.success("Image removed");
-      await this.loadImages();
+    this.showDeleteConfirm = false;
+
+    try {
+      const result = await api.images.remove(id);
+      if (result.error) {
+        toast.error(result.message || result.error || "Failed to remove image");
+      } else {
+        toast.success("Image removed");
+        await this.loadImages();
+      }
+    } catch (err) {
+      toast.error("Network error during image removal");
+    } finally {
+      this.actionLoading = null;
+      this.imageToDelete = null;
     }
-    this.actionLoading = null;
   }
 }

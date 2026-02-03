@@ -4,6 +4,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Shield, UserPlus, Star, Trash2, Users } from '@lucide/svelte';
   import { activeTeam } from '$lib/stores';
+  import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
   import type { TeamController } from '../team-controller.svelte';
   import type { TeamRole } from '$lib/api';
 
@@ -111,7 +112,7 @@
                       variant="ghost"
                       size="icon"
                       class="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onclick={() => ctrl.removeMember($activeTeam.team!.id, member.user_id)}
+                      onclick={() => ctrl.requestRemoveMember($activeTeam.team!.id, member.user_id)}
                     >
                       <Trash2 class="h-4 w-4" />
                     </Button>
@@ -139,3 +140,12 @@
     </div>
   {/if}
 </Card.Root>
+
+<ConfirmationDialog
+  bind:open={ctrl.showRemoveMemberConfirm}
+  title="Remove Member"
+  description="Are you sure you want to remove this member from the team?"
+  confirmText="Remove"
+  variant="destructive"
+  onConfirm={() => ctrl.confirmRemoveMember()}
+/>

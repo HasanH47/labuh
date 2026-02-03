@@ -3,6 +3,7 @@
   import { Button } from '$lib/components/ui/button';
   import { AlertTriangle, Trash2 } from '@lucide/svelte';
   import { activeTeam } from '$lib/stores';
+  import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
   import { TeamController } from '$lib/features/teams/team-controller.svelte';
 
   const teamCtrl = new TeamController();
@@ -30,7 +31,7 @@
       <Button
         variant="destructive"
         disabled={!isOwner || !$activeTeam?.team}
-        onclick={() => $activeTeam?.team && teamCtrl.deleteTeam($activeTeam.team.id)}
+        onclick={() => $activeTeam?.team && teamCtrl.requestDeleteTeam($activeTeam.team.id)}
       >
         <Trash2 class="h-4 w-4 mr-2" />
         Delete Team
@@ -43,3 +44,12 @@
     {/if}
   </Card.Content>
 </Card.Root>
+
+<ConfirmationDialog
+  bind:open={teamCtrl.showDeleteTeamConfirm}
+  title="Delete Team"
+  description="Are you sure you want to delete this team? This action cannot be undone and will delete all stacks and resources within the team."
+  confirmText="Delete Team"
+  variant="destructive"
+  onConfirm={() => teamCtrl.confirmDeleteTeam()}
+/>

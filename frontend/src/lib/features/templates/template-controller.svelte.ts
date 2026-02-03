@@ -11,6 +11,10 @@ export class TemplateController {
   jsonInput = $state("");
   adding = $state(false);
 
+  // UI States
+  showRemoveConfirm = $state(false);
+  templateToRemove = $state<string | null>(null);
+
   async init() {
     await this.loadTemplates();
   }
@@ -72,8 +76,16 @@ export class TemplateController {
     }
   }
 
-  async deleteTemplate(id: string) {
-    if (!confirm("Are you sure you want to delete this template?")) return;
+  requestDelete(id: string) {
+    this.templateToRemove = id;
+    this.showRemoveConfirm = true;
+  }
+
+  async confirmDelete() {
+    if (!this.templateToRemove) return;
+    const id = this.templateToRemove;
+    this.showRemoveConfirm = false;
+
     const result = await api.templates.delete(id);
     if (!result.error) {
       toast.success("Template deleted successfully");
@@ -81,5 +93,6 @@ export class TemplateController {
     } else {
       toast.error(result.message || result.error);
     }
+    this.templateToRemove = null;
   }
 }

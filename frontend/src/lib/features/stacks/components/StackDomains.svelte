@@ -79,7 +79,7 @@
                 </div>
                 <div class="flex gap-1">
                 {#if !isViewer}
-                    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:bg-destructive/10" onclick={() => ctrl.removeDomain(domain.domain)} title="Remove attachment">
+                    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:bg-destructive/10" onclick={() => ctrl.requestRemoveDomain(domain.domain)} title="Remove attachment">
                     <Trash2 class="h-4 w-4" />
                     </Button>
                 {/if}

@@ -20,6 +20,12 @@ export class TeamController {
   inviteRole = $state<TeamRole>("Developer");
   inviting = $state(false);
 
+  // UI States (Modals)
+  showDeleteTeamConfirm = $state(false);
+  teamToDelete = $state<string | null>(null);
+  showRemoveMemberConfirm = $state(false);
+  memberToRemove = $state<{ teamId: string; userId: string } | null>(null);
+
   readonly roles: TeamRole[] = ["Owner", "Admin", "Developer", "Viewer"];
 
   async init() {
@@ -52,13 +58,15 @@ export class TeamController {
     this.creatingTeam = false;
   }
 
-  async deleteTeam(id: string) {
-    if (
-      !confirm(
-        "Are you sure you want to delete this team? This action cannot be undone and will delete all stacks and resources within the team.",
-      )
-    )
-      return;
+  requestDeleteTeam(id: string) {
+    this.teamToDelete = id;
+    this.showDeleteTeamConfirm = true;
+  }
+
+  async confirmDeleteTeam() {
+    if (!this.teamToDelete) return;
+    const id = this.teamToDelete;
+    this.showDeleteTeamConfirm = false;
 
     const result = await api.teams.remove(id);
     if (!result.error) {
@@ -107,8 +115,16 @@ export class TeamController {
     this.inviting = false;
   }
 
-  async removeMember(teamId: string, userId: string) {
-    if (!confirm("Are you sure you want to remove this member?")) return;
+  requestRemoveMember(teamId: string, userId: string) {
+    this.memberToRemove = { teamId, userId };
+    this.showRemoveMemberConfirm = true;
+  }
+
+  async confirmRemoveMember() {
+    if (!this.memberToRemove) return;
+    const { teamId, userId } = this.memberToRemove;
+    this.showRemoveMemberConfirm = false;
+
     const result = await api.teams.removeMember(teamId, userId);
     if (!result.error) {
       toast.success("Member removed");

@@ -40,6 +40,18 @@ export class StackController {
   showSecrets = $state<Set<string>>(new Set());
   showBuildLogs = $state(false);
 
+  // Confimation Modals
+  showRedeployConfirm = $state(false);
+  redeployService = $state<string | undefined>(undefined);
+  showRemoveStackConfirm = $state(false);
+  showRollbackConfirm = $state(false);
+  showRemoveDomainConfirm = $state(false);
+  domainToRemove = $state<string | null>(null);
+  showDeleteEnvConfirm = $state(false);
+  envVarToDelete = $state<{ key: string; container: string } | null>(null);
+  showRegenerateWebhookConfirm = $state(false);
+  isCreating = $state(false); // For async stack creation UX
+
   constructor(id: string) {
     this.id = id;
   }
@@ -191,20 +203,29 @@ export class StackController {
     this.actionLoading = false;
   }
 
-  async redeploy(serviceName?: string) {
-    const msg = serviceName
-      ? `Recreate container ${serviceName}?`
-      : "Recreate all containers in this stack? This will apply any environment variable changes.";
-    if (!confirm(msg)) return;
+  requestRedeploy(serviceName?: string) {
+    this.redeployService = serviceName;
+    this.showRedeployConfirm = true;
+  }
+
+  async confirmRedeploy() {
+    const serviceName = this.redeployService;
+    this.showRedeployConfirm = false;
     this.actionLoading = true;
     this.showBuildLogs = true;
-    await api.stacks.redeploy(this.id, serviceName);
-    await Promise.all([
-      this.loadStack(),
-      this.loadContainers(),
-      this.loadHealth(),
-    ]);
-    this.actionLoading = false;
+    try {
+      await api.stacks.redeploy(this.id, serviceName);
+      await Promise.all([
+        this.loadStack(),
+        this.loadContainers(),
+        this.loadHealth(),
+      ]);
+    } catch (err: any) {
+      toast.error(err.message || "Redeployment failed");
+    } finally {
+      this.actionLoading = false;
+      this.redeployService = undefined;
+    }
   }
 
   async build(serviceName?: string) {
@@ -219,23 +240,34 @@ export class StackController {
     this.actionLoading = false;
   }
 
-  async remove() {
-    if (
-      !confirm(
-        "Are you sure you want to delete this stack and all its containers?",
-      )
-    )
-      return;
-    this.actionLoading = true;
-    await api.stacks.remove(this.id);
-    goto("/dashboard/stacks");
+  requestRemove() {
+    this.showRemoveStackConfirm = true;
   }
 
-  async rollback() {
-    if (
-      !confirm("Revert all containers in this stack to the last stable images?")
-    )
-      return;
+  async confirmRemove() {
+    this.showRemoveStackConfirm = false;
+    this.actionLoading = true;
+    try {
+      const res = await api.stacks.remove(this.id);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Stack removed");
+        goto("/dashboard/stacks");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove stack");
+    } finally {
+      this.actionLoading = false;
+    }
+  }
+
+  requestRollback() {
+    this.showRollbackConfirm = true;
+  }
+
+  async confirmRollback() {
+    this.showRollbackConfirm = false;
     this.actionLoading = true;
     try {
       const result = await api.stacks.rollback(this.id);
@@ -328,10 +360,18 @@ export class StackController {
     }
   }
 
-  async removeDomain(domain: string) {
-    if (!confirm(`Remove domain ${domain}?`)) return;
+  requestRemoveDomain(domain: string) {
+    this.domainToRemove = domain;
+    this.showRemoveDomainConfirm = true;
+  }
+
+  async confirmRemoveDomain() {
+    if (!this.domainToRemove) return;
+    const domain = this.domainToRemove;
+    this.showRemoveDomainConfirm = false;
     await api.stacks.domains.remove(this.id, domain);
     await this.loadDomains();
+    this.domainToRemove = null;
   }
 
   async verifyDomain(domain: string) {
@@ -380,20 +420,26 @@ export class StackController {
     await this.loadEnvVars();
   }
 
-  async deleteEnvVar(key: string, containerName: string) {
-    if (
-      !confirm(
-        `Delete environment variable "${key}" for container "${containerName || "Global"}"?`,
-      )
-    )
-      return;
-    await api.stacks.env.delete(this.id, key, containerName);
-    await this.loadEnvVars();
+  requestDeleteEnvVar(key: string, containerName: string) {
+    this.envVarToDelete = { key, container: containerName };
+    this.showDeleteEnvConfirm = true;
   }
 
-  async regenerateWebhook() {
-    if (!confirm("Regenerate webhook token? Previous URL will stop working."))
-      return;
+  async confirmDeleteEnvVar() {
+    if (!this.envVarToDelete) return;
+    const { key, container } = this.envVarToDelete;
+    this.showDeleteEnvConfirm = false;
+    await api.stacks.env.delete(this.id, key, container);
+    await this.loadEnvVars();
+    this.envVarToDelete = null;
+  }
+
+  requestRegenerateWebhook() {
+    this.showRegenerateWebhookConfirm = true;
+  }
+
+  async confirmRegenerateWebhook() {
+    this.showRegenerateWebhookConfirm = false;
     const result = await api.stacks.regenerateWebhookToken(this.id);
     if (result.data && this.stack) {
       this.stack.webhook_token = result.data.token;

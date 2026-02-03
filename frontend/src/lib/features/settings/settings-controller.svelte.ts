@@ -15,6 +15,10 @@ export class SettingsController {
   });
   addingRegistry = $state(false);
 
+  // UI States
+  showRemoveRegistryConfirm = $state(false);
+  registryToRemove = $state<string | null>(null);
+
   async init() {
     await this.loadRegistries();
   }
@@ -65,11 +69,18 @@ export class SettingsController {
     this.addingRegistry = false;
   }
 
-  async removeRegistry(id: string) {
+  requestRemoveRegistry(id: string) {
+    this.registryToRemove = id;
+    this.showRemoveRegistryConfirm = true;
+  }
+
+  async confirmRemoveRegistry() {
+    if (!this.registryToRemove) return;
+    const id = this.registryToRemove;
     const team = get(activeTeam)?.team;
     if (!team) return;
-    if (!confirm("Are you sure you want to remove this registry credential?"))
-      return;
+
+    this.showRemoveRegistryConfirm = false;
     const result = await api.registries.remove(id, team.id);
     if (!result.error) {
       toast.success("Registry credential removed");
@@ -77,6 +88,7 @@ export class SettingsController {
     } else {
       toast.error(result.message || result.error);
     }
+    this.registryToRemove = null;
   }
 
   async saveProfile() {

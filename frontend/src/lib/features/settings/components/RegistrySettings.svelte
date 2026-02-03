@@ -84,7 +84,7 @@
                   <Button
                     variant="ghost"
                     size="icon"
-                    onclick={() => ctrl.removeRegistry(reg.id)}
+                    onclick={() => ctrl.requestRemoveRegistry(reg.id)}
                   >
                     <Trash2 class="h-4 w-4 text-destructive" />
                   </Button>

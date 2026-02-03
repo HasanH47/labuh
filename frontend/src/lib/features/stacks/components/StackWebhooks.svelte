@@ -94,12 +94,12 @@
             {/if}
           </p>
         </div>
-        <Button variant="outline" size="sm" class="w-full text-xs" onclick={() => ctrl.regenerateWebhook()} disabled={isViewer}>
+        <Button variant="outline" size="sm" class="w-full text-xs" onclick={() => ctrl.requestRegenerateWebhook()} disabled={isViewer}>
           Regenerate Token
         </Button>
       </div>
     {:else}
-      <Button class="w-full" onclick={() => ctrl.regenerateWebhook()}>
+      <Button class="w-full" onclick={() => ctrl.requestRegenerateWebhook()}>
         Generate Webhook
       </Button>
     {/if}

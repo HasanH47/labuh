@@ -7,6 +7,7 @@
 	import { TemplateController } from '$lib/features/templates/template-controller.svelte';
 	import TemplateCard from '$lib/features/templates/components/TemplateCard.svelte';
 	import AddTemplateDialog from '$lib/features/templates/components/AddTemplateDialog.svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 
 	let ctrl = $state(new TemplateController());
 
@@ -54,7 +55,7 @@
 	{:else}
 		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each ctrl.filteredTemplates as template}
-				<TemplateCard {template} ondelete={(id) => ctrl.deleteTemplate(id)} />
+				<TemplateCard {template} ondelete={(id) => ctrl.requestDelete(id)} />
 			{/each}
 		</div>
 	{/if}
@@ -74,3 +75,12 @@
 </div>
 
 <AddTemplateDialog bind:ctrl />
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveConfirm}
+	title="Delete Template"
+	description="Are you sure you want to delete this template? This action cannot be undone."
+	confirmText="Delete Template"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmDelete()}
+/>

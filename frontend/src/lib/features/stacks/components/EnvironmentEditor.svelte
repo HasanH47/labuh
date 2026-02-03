@@ -105,7 +105,7 @@
                 </Button>
               {/if}
               {#if !isViewer}
-                <Button variant="ghost" size="icon" class="h-5 w-5 text-destructive" onclick={() => ctrl.deleteEnvVar(env.key, env.container_name)} title="Delete">
+                <Button variant="ghost" size="icon" class="h-5 w-5 text-destructive" onclick={() => ctrl.requestDeleteEnvVar(env.key, env.container_name)} title="Delete">
                   <Trash2 class="h-3 w-3" />
                 </Button>
               {/if}

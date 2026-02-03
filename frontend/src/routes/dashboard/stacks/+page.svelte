@@ -10,6 +10,7 @@
 	import { StackListController } from '$lib/features/stacks/stack-list-controller.svelte';
 	import StackCard from '$lib/features/stacks/components/StackCard.svelte';
 	import CreateStackDialog from '$lib/features/stacks/components/CreateStackDialog.svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 
 	let ctrl = $state(new StackListController());
 	let fileInput = $state<HTMLInputElement>();
@@ -126,3 +127,12 @@
 </div>
 
 <CreateStackDialog bind:ctrl />
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveConfirm}
+	title="Remove Stack"
+	description="Are you sure you want to delete this stack and all its containers? This action cannot be undone."
+	confirmText="Remove Stack"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemove()}
+/>

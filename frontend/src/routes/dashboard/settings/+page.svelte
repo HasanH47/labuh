@@ -6,6 +6,7 @@
 	import AppearanceSettings from '$lib/features/settings/components/AppearanceSettings.svelte';
 	import RegistrySettings from '$lib/features/settings/components/RegistrySettings.svelte';
 	import TeamSettings from '$lib/features/settings/components/TeamSettings.svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 
 	let ctrl = $state(new SettingsController());
 
@@ -33,3 +34,12 @@
 		<TeamSettings />
 	</div>
 </div>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveRegistryConfirm}
+	title="Remove Registry Credential"
+	description="Are you sure you want to remove this registry credential? Stacks using this registry may fail to pull new images."
+	confirmText="Remove"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemoveRegistry()}
+/>

@@ -19,6 +19,10 @@ export class StackListController {
     composePath: "docker-compose.yml",
   });
 
+  // UI States
+  showRemoveConfirm = $state(false);
+  stackToRemove = $state<string | null>(null);
+
   async init() {
     await this.loadStacks();
   }
@@ -43,45 +47,62 @@ export class StackListController {
     if (!this.newStack.name || !team) return;
     this.creating = true;
 
-    let result;
-    if (this.importMode === "manual") {
-      if (!this.newStack.composeContent) {
-        this.creating = false;
-        return;
-      }
-      result = await api.stacks.create({
-        name: this.newStack.name,
-        team_id: team.id,
-        compose_content: this.newStack.composeContent,
-      });
-    } else {
-      if (!this.gitStack.url) {
-        this.creating = false;
-        return;
-      }
-      result = await api.stacks.createFromGit({
-        name: this.newStack.name,
-        team_id: team.id,
-        git_url: this.gitStack.url,
-        git_branch: this.gitStack.branch,
-        compose_path: this.gitStack.composePath,
-      });
-    }
+    // Toast early
+    const stackName = this.newStack.name;
+    toast.info(
+      `Deploying stack ${stackName}... This might take a while if images need pulling.`,
+    );
 
-    if (result.data) {
-      toast.success("Stack created successfully");
-      this.showCreateDialog = false;
-      this.newStack = { name: "", composeContent: "" };
-      this.gitStack = {
-        url: "",
-        branch: "main",
-        composePath: "docker-compose.yml",
-      };
-      await this.loadStacks();
-    } else {
-      toast.error(result.message || result.error || "Failed to create stack");
+    // Close dialog immediately as requested
+    this.showCreateDialog = false;
+
+    let result;
+    try {
+      if (this.importMode === "manual") {
+        if (!this.newStack.composeContent) {
+          this.creating = false;
+          return;
+        }
+        result = await api.stacks.create({
+          name: this.newStack.name,
+          team_id: team.id,
+          compose_content: this.newStack.composeContent,
+        });
+      } else {
+        if (!this.gitStack.url) {
+          this.creating = false;
+          return;
+        }
+        result = await api.stacks.createFromGit({
+          name: this.newStack.name,
+          team_id: team.id,
+          git_url: this.gitStack.url,
+          git_branch: this.gitStack.branch,
+          compose_path: this.gitStack.composePath,
+        });
+      }
+
+      if (result.data) {
+        toast.success(`Stack ${stackName} created successfully`);
+        this.newStack = { name: "", composeContent: "" };
+        this.gitStack = {
+          url: "",
+          branch: "main",
+          composePath: "docker-compose.yml",
+        };
+        await this.loadStacks();
+      } else {
+        toast.error(
+          result.message ||
+            result.error ||
+            `Failed to create stack ${stackName}`,
+        );
+      }
+    } catch (err) {
+      toast.error(`Network error while creating stack ${stackName}`);
+    } finally {
+      this.creating = false;
     }
-    this.creating = false;
   }
 
   async startStack(id: string) {
@@ -102,14 +123,17 @@ export class StackListController {
     this.actionLoading = null;
   }
 
-  async removeStack(id: string) {
-    if (
-      !confirm(
-        "Are you sure you want to delete this stack and all its containers?",
-      )
-    )
-      return;
+  requestRemove(id: string) {
+    this.stackToRemove = id;
+    this.showRemoveConfirm = true;
+  }
+
+  async confirmRemove() {
+    if (!this.stackToRemove) return;
+    const id = this.stackToRemove;
+    this.showRemoveConfirm = false;
     this.actionLoading = id;
+
     const result = await api.stacks.remove(id);
     if (!result.error) toast.success("Stack removed");
     else toast.error(result.message || result.error);

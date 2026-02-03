@@ -74,14 +74,14 @@
           <Button
             variant="outline"
             size="sm"
-            onclick={() => ctrl.rollback()}
+            onclick={() => ctrl.requestRollback()}
             disabled={ctrl.actionLoading || !ctrl.stack?.last_stable_images}
             title="Rollback to last stable version"
           >
             <RotateCcw class="h-4 w-4 mr-1 {ctrl.actionLoading ? 'animate-spin' : ''}" />
             {ctrl.actionLoading ? 'Rolling back...' : 'Rollback'}
           </Button>
-          <Button variant="outline" size="sm" onclick={() => ctrl.redeploy()} disabled={ctrl.actionLoading} title="Recreate containers to apply changes">
+          <Button variant="outline" size="sm" onclick={() => ctrl.requestRedeploy()} disabled={ctrl.actionLoading} title="Recreate containers to apply changes">
             <RotateCcw class="h-4 w-4 mr-1" /> Restart
           </Button>
           <Button variant="outline" size="sm" onclick={() => ctrl.showComposeEditor = !ctrl.showComposeEditor}>
@@ -107,7 +107,7 @@
           <Button variant="outline" size="sm" onclick={() => ctrl.export()} disabled={ctrl.actionLoading} title="Export stack as JSON backup">
             <Download class="h-4 w-4 mr-1" /> Export
           </Button>
-          <Button variant="outline" size="sm" onclick={() => ctrl.remove()} disabled={ctrl.actionLoading}>
+          <Button variant="outline" size="sm" onclick={() => ctrl.requestRemove()} disabled={ctrl.actionLoading}>
             <Trash2 class="h-4 w-4 text-destructive" />
           </Button>
         {:else}

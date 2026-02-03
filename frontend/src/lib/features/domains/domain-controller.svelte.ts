@@ -49,6 +49,12 @@ export class DomainController {
   editDnsContent = $state("");
   updatingDns = $state(false);
 
+  // Confirmation Modals
+  showRemoveConfigConfirm = $state(false);
+  configToRemove = $state<string | null>(null);
+  showRemoveDomainConfirm = $state(false);
+  domainToRemove = $state<{ stackId: string; domain: string } | null>(null);
+
   async init() {
     await this.loadAll();
   }
@@ -98,11 +104,17 @@ export class DomainController {
     }
   }
 
-  async removeDnsConfig(provider: string) {
+  requestRemoveDnsConfig(provider: string) {
+    this.configToRemove = provider;
+    this.showRemoveConfigConfirm = true;
+  }
+
+  async confirmRemoveDnsConfig() {
+    if (!this.configToRemove) return;
+    const provider = this.configToRemove;
     const team = get(activeTeam);
     if (!team?.team?.id) return;
-    if (!confirm(`Are you sure you want to remove ${provider} configuration?`))
-      return;
+    this.showRemoveConfigConfirm = false;
 
     try {
       const res = await api.dns.deleteConfig(team.team.id, provider);
@@ -133,8 +145,15 @@ export class DomainController {
     }
   }
 
-  async removeDomain(stackId: string, domain: string) {
-    if (!confirm(`Are you sure you want to remove ${domain}?`)) return;
+  requestRemoveDomain(stackId: string, domain: string) {
+    this.domainToRemove = { stackId, domain };
+    this.showRemoveDomainConfirm = true;
+  }
+
+  async confirmRemoveDomain() {
+    if (!this.domainToRemove) return;
+    const { stackId, domain } = this.domainToRemove;
+    this.showRemoveDomainConfirm = false;
 
     try {
       const res = await api.stacks.domains.remove(stackId, domain);

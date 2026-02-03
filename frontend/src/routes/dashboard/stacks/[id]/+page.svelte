@@ -16,6 +16,7 @@
 	import ComposeEditor from '$lib/features/stacks/components/ComposeEditor.svelte';
 	import LogViewer from '$lib/features/stacks/components/LogViewer.svelte';
 	import StackHealth from '$lib/features/stacks/components/StackHealth.svelte';
+	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { goto } from '$app/navigation';
@@ -76,3 +77,58 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Global Stack Dialogs -->
+<ConfirmationDialog
+	bind:open={ctrl.showRedeployConfirm}
+	title="Redeploy Stack"
+	description={ctrl.redeployService
+		? `Are you sure you want to recreate container for service "${ctrl.redeployService}"?`
+		: "Are you sure you want to recreate all containers in this stack? This will apply any environment variable changes."}
+	confirmText="Redeploy"
+	onConfirm={() => ctrl.confirmRedeploy()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveStackConfirm}
+	title="Delete Stack"
+	description="Are you sure you want to delete this stack and all its containers? This action cannot be undone."
+	confirmText="Delete Stack"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemove()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRollbackConfirm}
+	title="Rollback Stack"
+	description="Are you sure you want to revert all containers in this stack to their last stable image versions?"
+	confirmText="Rollback"
+	onConfirm={() => ctrl.confirmRollback()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRemoveDomainConfirm}
+	title="Remove Domain"
+	description={`Are you sure you want to remove the domain "${ctrl.domainToRemove}" from this stack?`}
+	confirmText="Remove"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRemoveDomain()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showDeleteEnvConfirm}
+	title="Delete Environment Variable"
+	description={`Are you sure you want to delete the variable "${ctrl.envVarToDelete?.key}" for ${ctrl.envVarToDelete?.container || "all services"}?`}
+	confirmText="Delete"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmDeleteEnvVar()}
+/>
+
+<ConfirmationDialog
+	bind:open={ctrl.showRegenerateWebhookConfirm}
+	title="Regenerate Webhook Token"
+	description="Are you sure you want to regenerate the webhook token? The previous URL will stop working immediately."
+	confirmText="Regenerate"
+	variant="destructive"
+	onConfirm={() => ctrl.confirmRegenerateWebhook()}
+/>
