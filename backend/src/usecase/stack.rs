@@ -1,6 +1,5 @@
 use chrono::Utc;
-use rand::Rng;
-use rand::distributions::Alphanumeric;
+use rand::distr::{Alphanumeric, SampleString};
 use std::path::Path;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -109,11 +108,7 @@ impl StackUsecase {
 
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        let token: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
+        let token: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
         let stack = Stack {
             id: id.clone(),
@@ -178,11 +173,7 @@ impl StackUsecase {
 
         // 4. Create stack record
         let now = Utc::now().to_rfc3339();
-        let token: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
+        let token: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
         let stack = Stack {
             id: id.clone(),
@@ -602,11 +593,7 @@ impl StackUsecase {
 
     pub async fn regenerate_webhook_token(&self, id: &str, user_id: &str) -> Result<String> {
         let _stack = self.get_stack(id, user_id).await?;
-        let token: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
+        let token: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
         self.repo.update_webhook_token(id, &token).await?;
         Ok(token)
     }

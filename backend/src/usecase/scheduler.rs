@@ -78,11 +78,7 @@ impl AutomationScheduler {
 
                 tokio::spawn(async move {
                     if let Err(e) = usecase.redeploy_stack(&stack_id).await {
-                        tracing::error!(
-                            "Scheduled redeploy failed for stack {}: {}",
-                            stack_id,
-                            e
-                        );
+                        tracing::error!("Scheduled redeploy failed for stack {}: {}", stack_id, e);
                     }
                 });
             }

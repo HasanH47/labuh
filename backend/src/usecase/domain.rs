@@ -284,9 +284,11 @@ impl DomainUsecase {
     }
 
     pub async fn verify_domain(&self, domain: &str) -> Result<DnsVerificationResult> {
+        #[allow(deprecated)]
         use hickory_resolver::TokioAsyncResolver;
         use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 
+        #[allow(deprecated)]
         let resolver =
             TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
@@ -384,12 +386,7 @@ impl DomainUsecase {
                 };
 
                 if let Ok(new_id) = provider_impl
-                    .create_record(
-                        &domain.domain,
-                        &record_type,
-                        &content,
-                        domain.proxied,
-                    )
+                    .create_record(&domain.domain, &record_type, &content, domain.proxied)
                     .await
                 {
                     let _ = self
@@ -408,10 +405,8 @@ impl DomainUsecase {
                     .get_provider(&stack.team_id, domain.provider.clone())
                     .await
             {
-                let service_url = format!(
-                    "http://{}:{}",
-                    domain.container_name, domain.container_port
-                );
+                let service_url =
+                    format!("http://{}:{}", domain.container_name, domain.container_port);
                 let _ = provider_impl
                     .setup_tunnel_ingress(tunnel_id, &domain.domain, &service_url)
                     .await;
