@@ -38,6 +38,16 @@ sudo nano /opt/labuh/.env
 - `JWT_SECRET`: Kunci rahasia untuk autentikasi (digenerate otomatis).
 - `DATABASE_URL`: Alamat database SQLite.
 - `FRONTEND_DIR`: Lokasi file dashboard statis.
+- `LABUH_PUBLIC_IP`: (Opsional) IP Publik server untuk domain DNS otomatis.
+
+### Inisialisasi Cluster (Opsional)
+
+Jika Anda ingin menjalankan Labuh dalam mode **Swarm** (Clustering):
+
+1. Masuk ke Dashboard.
+2. Pergi ke menu **Nodes**.
+3. Klik **Initialize Swarm**.
+4. Labuh akan mengkonfigurasi node ini sebagai Manager utama.
 
 ## Manajemen Service
 

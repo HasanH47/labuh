@@ -23,6 +23,17 @@ export default withMermaid(
           ],
         },
         {
+          text: "Swarm & Clusters",
+          items: [
+            { text: "Swarm Overview", link: "/guide/swarm" },
+            { text: "Node Management", link: "/guide/swarm#node-management" },
+            {
+              text: "Network Visualization",
+              link: "/guide/swarm#network-visualization",
+            },
+          ],
+        },
+        {
           text: "Core Features",
           items: [
             { text: "Docker Stacks", link: "/guide/stacks" },

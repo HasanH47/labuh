@@ -34,4 +34,5 @@ Di halaman detail stack, Anda dapat:
 ## Network & Volume
 
 - **Networking**: Labuh secara otomatis menyatukan semua stack ke dalam satu Docker network internal agar mereka bisa saling berkomunikasi menggunakan nama service.
-- **Volumes**: Labuh mendukung penulisan volume lokal maupun named volume sesuai standar Docker.
+- **Service Replication**: Tentukan `replicas: N` di dalam docker-compose Anda untuk menjalankan multiple instance secara otomatis di seluruh Swarm.
+- **Network Visualizer**: Lihat topologi visual stack Anda dengan menekan tombol **Network Map** di detail stack.

@@ -35,13 +35,20 @@ Database file-based yang ringan.
 
 ```mermaid
 graph TD
-    User([User Browser]) -->|REST / WS / SSE| Labuh[Labuh Backend]
-    Labuh -->|Control| Docker[Docker Engine]
-    Docker -->|Manage| Containers[Application Containers]
-    User -->|Access Apps| Caddy[Caddy Proxy]
-    Caddy -->|Forward| Containers
-    Labuh -->|Config| Caddy
-    Labuh <-->|Store/Read| DB[(SQLite)]
+    User([User Browser]) -->|REST / WS / SSE| API[Labuh API]
+    User -->|HTTPS| Ingress[Ingress Layer]
+
+    subgraph "Manager Node"
+        API -->|Control| DockerM[Docker Swarm Manager]
+        API <-->|Store/Read| DB[(SQLite)]
+        Ingress[Caddy / Cloudflare Tunnel] -->|Forward| Svc1[Service A]
+    end
+
+    subgraph "Worker Node(s)"
+        DockerM -->|Orchestrate| DockerW[Docker Worker]
+        DockerW -->|Run| Svc2[Service B]
+        Ingress -->|Overlay Net| Svc2
+    end
 ```
 
 ## Keamanan
