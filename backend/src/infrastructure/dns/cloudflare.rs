@@ -18,10 +18,6 @@ impl CloudflareProvider {
             client: reqwest::Client::new(),
         }
     }
-
-    pub fn get_account_id(&self) -> Option<String> {
-        self.account_id.clone()
-    }
 }
 
 #[async_trait]
@@ -185,6 +181,87 @@ impl DnsProvider for CloudflareProvider {
                 "Cloudflare API error ({}): {}",
                 status, error_text
             )));
+        }
+
+        Ok(())
+    }
+
+    async fn setup_tunnel_ingress(
+        &self,
+        tunnel_id: &str,
+        hostname: &str,
+        service_url: &str,
+    ) -> Result<()> {
+        let account_id = self.account_id.as_ref().ok_or_else(|| {
+            let msg = "Cloudflare Account ID is missing in configuration. It is required for tunnel ingress management.";
+            tracing::error!("{}", msg);
+            AppError::Validation(msg.to_string())
+        })?;
+
+        let current_config = self.get_tunnel_configuration(account_id, tunnel_id).await?;
+        let mut ingress = current_config["config"]["ingress"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+
+        // Remove existing rule for this hostname if any
+        ingress.retain(|r| r["hostname"].as_str() != Some(hostname));
+
+        // Create new rule
+        let new_rule = serde_json::json!({
+            "hostname": hostname,
+            "service": service_url,
+        });
+
+        // Insert at the beginning or before catch-all
+        if let Some(pos) = ingress
+            .iter()
+            .position(|r| r["hostname"].is_null() || r["hostname"].as_str() == Some(""))
+        {
+            ingress.insert(pos, new_rule);
+        } else {
+            ingress.push(new_rule);
+            // Ensure catch-all exists
+            ingress.push(serde_json::json!({ "service": "http_status:404" }));
+        }
+
+        tracing::debug!(
+            "Updating tunnel configuration with new ingress list ({} rules)",
+            ingress.len()
+        );
+        self.update_tunnel_configuration(
+            account_id,
+            tunnel_id,
+            serde_json::json!({ "ingress": ingress }),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    async fn remove_tunnel_ingress(&self, tunnel_id: &str, hostname: &str) -> Result<()> {
+        let account_id = self.account_id.as_ref().ok_or_else(|| {
+            let msg = "Cloudflare Account ID is missing in configuration. It is required for tunnel ingress management.";
+            tracing::error!("{}", msg);
+            AppError::Validation(msg.to_string())
+        })?;
+
+        let current_config = self.get_tunnel_configuration(account_id, tunnel_id).await?;
+        let mut ingress = current_config["config"]["ingress"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+
+        let initial_len = ingress.len();
+        ingress.retain(|r| r["hostname"].as_str() != Some(hostname));
+
+        if ingress.len() != initial_len {
+            self.update_tunnel_configuration(
+                account_id,
+                tunnel_id,
+                serde_json::json!({ "ingress": ingress }),
+            )
+            .await?;
         }
 
         Ok(())

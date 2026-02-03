@@ -66,13 +66,24 @@
             </div>
 
             {#if ctrl.selectedType === 'Tunnel'}
-                <div class="space-y-2 p-3 border rounded-md bg-blue-500/5 border-blue-500/20">
-                    <Label for="tunnel_token">Tunnel Token (Optional)</Label>
-                     <Input id="tunnel_token" placeholder="eyJh..." bind:value={ctrl.tunnelToken} />
-                    <p class="text-[10px] text-muted-foreground">
-                        Provide a Cloudflare Tunnel token to automatically start the tunnel agent.
-                        Leave empty if utilizing an existing tunnel.
-                    </p>
+                <div class="space-y-4 p-3 border rounded-md bg-blue-500/5 border-blue-500/20">
+                    <div class="space-y-2">
+                        <Label for="tunnel_id">Tunnel ID</Label>
+                        <Input id="tunnel_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" bind:value={ctrl.tunnelId} />
+                        <p class="text-[10px] text-muted-foreground">
+                            Optional if token provided. Leave empty to auto-extract from token.
+                        </p>
+                    </div>
+                    <div class="space-y-2">
+                        <Label for="tunnel_token">Tunnel Token</Label>
+                        <Input id="tunnel_token" placeholder="eyJh..." bind:value={ctrl.tunnelToken} />
+                        <p class="text-[10px] text-muted-foreground">
+                            Optional if ID provided. Required to automatically start the tunnel agent.
+                        </p>
+                    </div>
+                    <div class="p-2 bg-blue-500/10 rounded border border-blue-500/20 text-[10px] text-blue-600 dark:text-blue-400">
+                        <strong>Note:</strong> At least one of the above is required to identify your secure tunnel.
+                    </div>
                 </div>
             {/if}
 

@@ -83,4 +83,12 @@ impl TunnelManager {
 
         Ok(())
     }
+
+    /// Helper to extract tunnel ID from a Cloudflare Tunnel token
+    pub fn extract_tunnel_id(token: &str) -> Option<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        let decoded = general_purpose::STANDARD.decode(token).ok()?;
+        let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+        json["t"].as_str().map(|s| s.to_string())
+    }
 }

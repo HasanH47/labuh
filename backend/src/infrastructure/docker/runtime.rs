@@ -261,7 +261,10 @@ impl RuntimePort for DockerRuntimeAdapter {
                             ip: p.ip,
                             private_port: p.private_port,
                             public_port: p.public_port,
-                            port_type: p.typ.map(|t| t.to_string()).unwrap_or_else(|| "tcp".to_string()),
+                            port_type: p
+                                .typ
+                                .map(|t| t.to_string())
+                                .unwrap_or_else(|| "tcp".to_string()),
                         })
                         .collect()
                 });

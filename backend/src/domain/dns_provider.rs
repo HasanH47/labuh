@@ -34,4 +34,19 @@ pub trait DnsProvider: Send + Sync {
         content: &str,
         proxied: bool,
     ) -> Result<()>;
+
+    /// Setup Cloudflare Tunnel ingress rules
+    async fn setup_tunnel_ingress(
+        &self,
+        _tunnel_id: &str,
+        _hostname: &str,
+        _service_url: &str,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// Remove Cloudflare Tunnel ingress rules
+    async fn remove_tunnel_ingress(&self, _tunnel_id: &str, _hostname: &str) -> Result<()> {
+        Ok(())
+    }
 }

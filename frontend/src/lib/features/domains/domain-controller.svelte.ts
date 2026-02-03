@@ -232,6 +232,13 @@ export class DomainController {
       return;
     }
 
+    if (this.selectedType === "Tunnel" && !this.tunnelId && !this.tunnelToken) {
+      toast.error(
+        "Please provide at least a Tunnel ID or a Token to identify your secure tunnel.",
+      );
+      return;
+    }
+
     const fullDomain = this.subdomain
       ? `${this.subdomain}.${this.selectedBaseDomain}`
       : this.selectedBaseDomain;
@@ -244,7 +251,10 @@ export class DomainController {
         container_port: this.selectedPort,
         provider: this.selectedProvider as any,
         type: this.selectedType as any,
-        tunnel_id: this.selectedType === "Tunnel" ? this.tunnelId : undefined,
+        tunnel_id:
+          this.selectedType === "Tunnel"
+            ? this.tunnelId || undefined
+            : undefined,
         tunnel_token: this.tunnelToken || undefined,
         dns_record_type: this.isAdvancedDns ? this.dnsRecordType : undefined,
         dns_record_content: this.isAdvancedDns

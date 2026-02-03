@@ -88,6 +88,17 @@
                             bind:value={ctrl.dnsConfigFields.zone_id}
                         />
                     </div>
+                    <div class="space-y-2">
+                        <Label for="account_id">Account ID</Label>
+                        <Input
+                            id="account_id"
+                            placeholder="Cloudflare Account ID"
+                            bind:value={ctrl.dnsConfigFields.account_id}
+                        />
+                        <p class="text-[10px] text-muted-foreground">
+                            Required for Secure Tunnel management. Found in dashboard.
+                        </p>
+                    </div>
                 </div>
             {/if}
 
