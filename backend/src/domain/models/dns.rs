@@ -14,6 +14,7 @@ pub struct DnsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudflareConfig {
     pub api_token: String,
+    pub account_id: Option<String>,
     pub zone_id: Option<String>, // Deprecated, but kept for backward compat deserialization
 }
 

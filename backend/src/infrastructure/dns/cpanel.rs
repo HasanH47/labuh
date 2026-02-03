@@ -20,6 +20,7 @@ impl DnsProvider for CPanelProvider {
         _domain: &str,
         _record_type: &str,
         _content: &str,
+        _proxied: bool,
     ) -> Result<String> {
         Err(AppError::Internal(
             "cPanel provider not yet implemented".to_string(),
@@ -48,6 +49,7 @@ impl DnsProvider for CPanelProvider {
         _record_id: &str,
         _record_type: &str,
         _content: &str,
+        _proxied: bool,
     ) -> Result<()> {
         Err(AppError::Internal(
             "cPanel provider not yet implemented".to_string(),

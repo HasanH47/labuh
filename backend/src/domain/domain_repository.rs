@@ -10,5 +10,5 @@ pub trait DomainRepository: Send + Sync {
     async fn list_all(&self) -> Result<Vec<Domain>>;
     async fn create(&self, domain: Domain) -> Result<Domain>;
     async fn delete(&self, id: &str) -> Result<()>;
-    async fn update_verification(&self, id: &str, verified: bool) -> Result<()>;
+    async fn update_verification(&self, domain: &str, verified: bool) -> Result<()>;
 }

@@ -147,6 +147,16 @@
                  </div>
             {/if}
 
+            {#if ctrl.selectedProvider === 'Cloudflare'}
+                <div class="flex items-center gap-2 p-3 border rounded-md bg-orange-500/5 border-orange-500/20">
+                    <input type="checkbox" id="proxied" class="h-4 w-4 rounded border-gray-300" bind:checked={ctrl.proxied} />
+                    <div class="flex flex-col">
+                        <Label for="proxied" class="font-normal cursor-pointer text-orange-600 dark:text-orange-400 font-medium text-sm">Proxied (Cloudflare)</Label>
+                        <p class="text-[10px] text-muted-foreground">Accelerate and protect your site with Cloudflare's proxy.</p>
+                    </div>
+                </div>
+            {/if}
+
             <hr class="my-4 border-dashed" />
 
             <div class="grid grid-cols-2 gap-4">

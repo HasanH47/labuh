@@ -34,6 +34,14 @@ pub trait RuntimePort: Send + Sync {
     // Network Management
     async fn ensure_network(&self, name: &str) -> Result<()>;
     async fn connect_network(&self, container: &str, network: &str) -> Result<()>;
+
+    // Swarm Management
+    async fn is_swarm_enabled(&self) -> Result<bool>;
+    async fn swarm_init(&self, listen_addr: &str) -> Result<String>; // Returns join token for workers
+    async fn swarm_join(&self, listen_addr: &str, remote_addr: &str, token: &str) -> Result<()>;
+    async fn list_nodes(&self) -> Result<Vec<SwarmNode>>;
+    async fn inspect_node(&self, id: &str) -> Result<SwarmNode>;
+    async fn get_swarm_tokens(&self) -> Result<SwarmTokens>;
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -91,4 +99,29 @@ pub struct ContainerInfo {
     pub state: String,
     pub status: String,
     pub labels: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SwarmNode {
+    pub id: String,
+    pub hostname: String,
+    pub role: String, // "manager", "worker"
+    pub status: String, // "ready", "down", etc.
+    pub availability: String, // "active", "pause", "drain"
+    pub addr: String,
+    pub version: String,
+    pub platform: String,
+    pub resources: NodeResources,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NodeResources {
+    pub nano_cpus: i64,
+    pub memory_bytes: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SwarmTokens {
+    pub manager: String,
+    pub worker: String,
 }

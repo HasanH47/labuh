@@ -41,12 +41,14 @@ export class DomainController {
   isAdvancedDns = $state(false);
   dnsRecordType = $state("A");
   dnsRecordContent = $state("");
+  proxied = $state(true);
 
   // Edit DNS State
   showEditDnsDialog = $state(false);
   editingDomain = $state<Domain | null>(null);
   editDnsType = $state("A");
   editDnsContent = $state("");
+  editProxied = $state(true);
   updatingDns = $state(false);
 
   // Confirmation Modals
@@ -247,6 +249,7 @@ export class DomainController {
         dns_record_content: this.isAdvancedDns
           ? this.dnsRecordContent
           : undefined,
+        proxied: this.proxied,
       });
 
       if (res.data) {
@@ -313,8 +316,9 @@ export class DomainController {
     // We don't have the current type/content in the local domain record,
     // so we'll let the user fill it or we could try to find it in remoteRecords
     // if they already loaded them. For now, default to A.
-    this.editDnsType = "A";
+    this.editDnsType = domain.type === "Tunnel" ? "CNAME" : "A";
     this.editDnsContent = "";
+    this.editProxied = domain.proxied;
     this.showEditDnsDialog = true;
   }
 
@@ -332,6 +336,7 @@ export class DomainController {
         this.editingDomain.domain,
         this.editDnsType,
         this.editDnsContent,
+        this.editProxied,
       );
 
       if (!res.error) {

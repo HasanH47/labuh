@@ -54,6 +54,16 @@
                 </div>
             </div>
 
+            {#if ctrl.editingDomain.provider === 'Cloudflare'}
+                <div class="flex items-center gap-2 p-3 border rounded-md bg-orange-500/5 border-orange-500/20">
+                    <input type="checkbox" id="edit_proxied" class="h-4 w-4 rounded border-gray-300" bind:checked={ctrl.editProxied} />
+                    <div class="flex flex-col">
+                        <Label for="edit_proxied" class="font-normal cursor-pointer text-orange-600 dark:text-orange-400 font-medium text-sm">Proxied (Cloudflare)</Label>
+                        <p class="text-[10px] text-muted-foreground">Accelerate and protect your site with Cloudflare's proxy.</p>
+                    </div>
+                </div>
+            {/if}
+
             <div class="p-3 border rounded-md bg-yellow-500/5 border-yellow-500/20 text-xs text-yellow-600 dark:text-yellow-400">
                 <p><strong>Note:</strong> Changes will be sent directly to {ctrl.editingDomain.provider}. Propagation might take some time depending on TTL settings.</p>
             </div>

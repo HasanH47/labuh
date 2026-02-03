@@ -1,9 +1,14 @@
 use async_trait::async_trait;
-use bollard::container::{
-    Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, StatsOptions, StopContainerOptions,
+use bollard::container::LogOutput;
+use bollard::models::{
+    EndpointSettings, LocalNodeState, NetworkConnectRequest, NetworkCreateRequest,
+    SwarmInitRequest, SwarmJoinRequest,
 };
-use bollard::image::CreateImageOptions;
+use bollard::query_parameters::{
+    BuildImageOptions, CreateContainerOptions, CreateImageOptions, ListContainersOptions,
+    ListImagesOptions, ListNodesOptions, LogsOptions, RemoveContainerOptions, RemoveImageOptions,
+    StartContainerOptions, StatsOptions, StopContainerOptions,
+};
 use bollard::Docker;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -36,7 +41,7 @@ impl DockerRuntimeAdapter {
 impl RuntimePort for DockerRuntimeAdapter {
     async fn pull_image(&self, image: &str, credentials: Option<(String, String)>) -> Result<()> {
         let options = CreateImageOptions {
-            from_image: image,
+            from_image: Some(image.to_string()),
             ..Default::default()
         };
 
@@ -68,19 +73,14 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn create_container(&self, config: ContainerConfig) -> Result<String> {
-        use bollard::models::{HostConfig, PortBinding};
+        use bollard::models::{ContainerCreateBody, HostConfig, PortBinding};
 
         // Build exposed ports and port bindings
-        let mut exposed_ports: HashMap<String, HashMap<(), ()>> = HashMap::new();
-        let mut port_bindings: HashMap<String, Option<Vec<PortBinding>>> = HashMap::new();
+        let mut exposed_ports: Vec<String> = Vec::new();
+        let mut port_bindings: bollard::models::PortMap = HashMap::new();
 
         if let Some(ports) = config.ports {
             for port_pair in ports {
-                // Supports:
-                // - "80" -> Container 80
-                // - "80:80" -> Host 80:Container 80 (0.0.0.0)
-                // - "127.0.0.1:80:80" -> Host 80:Container 80 (127.0.0.1)
-
                 let parts: Vec<&str> = port_pair.split(':').collect();
                 let (host_ip, host_port, container_port) = match parts.len() {
                     3 => (
@@ -102,7 +102,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                     format!("{}/tcp", container_port)
                 };
 
-                exposed_ports.insert(port_key.clone(), HashMap::new());
+                exposed_ports.push(port_key.clone());
 
                 if let Some(hp) = host_port {
                     port_bindings.insert(
@@ -150,7 +150,7 @@ impl RuntimePort for DockerRuntimeAdapter {
             ..Default::default()
         };
 
-        let bollard_config = Config {
+        let bollard_config = ContainerCreateBody {
             image: Some(config.image),
             env: config.env,
             cmd: config.cmd,
@@ -165,8 +165,8 @@ impl RuntimePort for DockerRuntimeAdapter {
         };
 
         let options = CreateContainerOptions {
-            name: config.name,
-            platform: None,
+            name: Some(config.name),
+            platform: "".to_string(),
         };
 
         let response = self
@@ -180,14 +180,17 @@ impl RuntimePort for DockerRuntimeAdapter {
 
     async fn start_container(&self, id: &str) -> Result<()> {
         self.docker
-            .start_container(id, None::<StartContainerOptions<String>>)
+            .start_container(id, None::<StartContainerOptions>)
             .await
             .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
         Ok(())
     }
 
     async fn stop_container(&self, id: &str) -> Result<()> {
-        let options = StopContainerOptions { t: 10 };
+        let options = StopContainerOptions {
+            t: Some(10),
+            signal: None,
+        };
         self.docker
             .stop_container(id, Some(options))
             .await
@@ -216,7 +219,7 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn list_containers(&self, all: bool) -> Result<Vec<ContainerInfo>> {
-        let options = ListContainersOptions::<String> {
+        let options = ListContainersOptions {
             all,
             ..Default::default()
         };
@@ -233,7 +236,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                 id: c.id.unwrap_or_default(),
                 names: c.names.unwrap_or_default(),
                 image: c.image.unwrap_or_default(),
-                state: c.state.unwrap_or_default(),
+                state: c.state.map(|s| s.to_string()).unwrap_or_default(),
                 status: c.status.unwrap_or_default(),
                 labels: c.labels.unwrap_or_default(),
             })
@@ -276,7 +279,7 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn get_logs(&self, id: &str, tail: usize) -> Result<Vec<String>> {
-        let options = LogsOptions::<String> {
+        let options = LogsOptions {
             stdout: true,
             stderr: true,
             tail: tail.to_string(),
@@ -323,31 +326,68 @@ impl RuntimePort for DockerRuntimeAdapter {
         let mut stats_stream = self.docker.stats(id, Some(options));
 
         if let Some(stats_result) = stats_stream.next().await {
-            let stats = stats_result.map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+            let stats = stats_result.map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
 
             // Calculate CPU percentage
-            let cpu_delta = stats.cpu_stats.cpu_usage.total_usage as f64
-                - stats.precpu_stats.cpu_usage.total_usage as f64;
-            let system_delta = stats.cpu_stats.system_cpu_usage.unwrap_or(0) as f64
-                - stats.precpu_stats.system_cpu_usage.unwrap_or(0) as f64;
+            let cpu_usage = stats
+                .cpu_stats
+                .as_ref()
+                .and_then(|c| c.cpu_usage.as_ref())
+                .and_then(|u| u.total_usage)
+                .unwrap_or(0);
+            let precpu_usage = stats
+                .precpu_stats
+                .as_ref()
+                .and_then(|c| c.cpu_usage.as_ref())
+                .and_then(|u| u.total_usage)
+                .unwrap_or(0);
+            let cpu_delta = (cpu_usage as f64) - (precpu_usage as f64);
+
+            let system_cpu = stats
+                .cpu_stats
+                .as_ref()
+                .and_then(|c| c.system_cpu_usage)
+                .unwrap_or(0);
+            let presystem_cpu = stats
+                .precpu_stats
+                .as_ref()
+                .and_then(|c| c.system_cpu_usage)
+                .unwrap_or(0);
+            let system_delta = (system_cpu as f64) - (presystem_cpu as f64);
+
             let cpu_percent = if system_delta > 0.0 && cpu_delta > 0.0 {
-                let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
+                let num_cpus = stats
+                    .cpu_stats
+                    .as_ref()
+                    .and_then(|c| c.online_cpus)
+                    .unwrap_or(1) as f64;
                 (cpu_delta / system_delta) * num_cpus * 100.0
             } else {
                 0.0
             };
 
             // Memory stats
-            let memory_usage = stats.memory_stats.usage.unwrap_or(0);
-            let memory_limit = stats.memory_stats.limit.unwrap_or(1);
+            let memory_usage = stats
+                .memory_stats
+                .as_ref()
+                .and_then(|m| m.usage)
+                .unwrap_or(0);
+            let memory_limit = stats
+                .memory_stats
+                .as_ref()
+                .and_then(|m| m.limit)
+                .unwrap_or(1);
             let memory_percent = (memory_usage as f64 / memory_limit as f64) * 100.0;
 
             // Network stats
             let (network_rx, network_tx) = stats
                 .networks
-                .map(|nets| {
+                .map(|nets: HashMap<String, bollard::models::ContainerNetworkStats>| {
                     nets.values().fold((0u64, 0u64), |(rx, tx), net| {
-                        (rx + net.rx_bytes, tx + net.tx_bytes)
+                        (
+                            rx + net.rx_bytes.unwrap_or(0),
+                            tx + net.tx_bytes.unwrap_or(0),
+                        )
                     })
                 })
                 .unwrap_or((0, 0));
@@ -373,11 +413,10 @@ impl RuntimePort for DockerRuntimeAdapter {
         context_path: &str,
         dockerfile_path: &str,
     ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<String>>> {
-        use bollard::image::BuildImageOptions;
         use tokio::sync::mpsc;
 
         let options = BuildImageOptions {
-            t: image_name.to_string(),
+            t: Some(image_name.to_string()),
             dockerfile: dockerfile_path.to_string(),
             rm: true,
             ..Default::default()
@@ -394,10 +433,14 @@ impl RuntimePort for DockerRuntimeAdapter {
 
         let (tx, rx) = mpsc::channel(100);
         let docker = self.docker.clone();
-        let tar_data_stream = tar_data.clone();
+        let tar_data_stream = tar_data;
 
         tokio::spawn(async move {
-            let mut stream = docker.build_image(options, None, Some(tar_data_stream.into()));
+            use http_body_util::Full;
+            use hyper::body::Bytes;
+
+            let body = Full::new(Bytes::from(tar_data_stream));
+            let mut stream = docker.build_image(options, None, Some(http_body_util::Either::Left(body)));
             while let Some(res) = stream.next().await {
                 match res {
                     Ok(inter) => {
@@ -407,7 +450,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                     }
                     Err(e) => {
                         let _ = tx
-                            .send(Err(AppError::ContainerRuntime(e.to_string())))
+                            .send(Err::<String, AppError>(AppError::ContainerRuntime(e.to_string())))
                             .await;
                         break;
                     }
@@ -459,8 +502,7 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn list_images(&self) -> Result<Vec<crate::domain::runtime::ImageInfo>> {
-        use bollard::image::ListImagesOptions;
-        let options = ListImagesOptions::<String> {
+        let options = ListImagesOptions {
             all: false,
             ..Default::default()
         };
@@ -469,7 +511,7 @@ impl RuntimePort for DockerRuntimeAdapter {
             .docker
             .list_images(Some(options))
             .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
 
         Ok(images
             .into_iter()
@@ -483,16 +525,15 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn remove_image(&self, id: &str, force: bool) -> Result<()> {
-        use bollard::image::RemoveImageOptions;
         let options = RemoveImageOptions {
             force,
-            noprune: false,
+            ..Default::default()
         };
 
         self.docker
             .remove_image(id, Some(options), None)
             .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
 
         Ok(())
     }
@@ -502,15 +543,12 @@ impl RuntimePort for DockerRuntimeAdapter {
             .docker
             .inspect_image(id)
             .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
 
         let config = image.config.unwrap_or_default();
 
-        // Extract exposed ports
-        let exposed_ports: Vec<String> = config
-            .exposed_ports
-            .map(|ports| ports.keys().cloned().collect())
-            .unwrap_or_default();
+        // Extract exposed ports - now a Vec<String> in 0.20
+        let exposed_ports: Vec<String> = config.exposed_ports.unwrap_or_default();
 
         // Extract environment variables
         let env_vars: Vec<String> = config.env.unwrap_or_default();
@@ -536,50 +574,232 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn ensure_network(&self, name: &str) -> Result<()> {
-        use bollard::network::CreateNetworkOptions;
-
-        // Check if exists
-        if self
-            .docker
-            .inspect_network::<String>(name, None)
-            .await
-            .is_ok()
-        {
+        // Check if network exists
+        if self.docker.inspect_network(name, None).await.is_ok() {
             return Ok(());
         }
 
-        let options = CreateNetworkOptions {
-            name,
-            driver: "bridge",
+        let config = NetworkCreateRequest {
+            name: name.to_string(),
+            internal: Some(false),
+            attachable: Some(true),
+            driver: Some("bridge".to_string()),
             ..Default::default()
         };
 
-        self.docker
-            .create_network(options)
-            .await
-            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+        if let Err(e) = self.docker.create_network(config).await {
+            let err_str = e.to_string();
+            if !err_str.contains("already exists") {
+                return Err(AppError::ContainerRuntime(err_str));
+            }
+        }
         Ok(())
     }
 
     async fn connect_network(&self, container: &str, network: &str) -> Result<()> {
-        use bollard::models::EndpointSettings;
-        use bollard::network::ConnectNetworkOptions;
-
-        let config = ConnectNetworkOptions {
-            container,
-            endpoint_config: EndpointSettings::default(),
+        let config = NetworkConnectRequest {
+            container: container.to_string(),
+            endpoint_config: Some(EndpointSettings::default()),
         };
 
-        match self.docker.connect_network(network, config).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("403") || err_str.contains("already exists") {
-                    Ok(())
-                } else {
-                    Err(crate::error::AppError::ContainerRuntime(err_str))
-                }
+        if let Err(e) = self.docker.connect_network(network, config).await {
+            let err_str = e.to_string();
+            // Ignore if already connected
+            if !err_str.contains("already exists") && !err_str.contains("is already connected") {
+                return Err(AppError::ContainerRuntime(err_str));
             }
         }
+        Ok(())
+    }
+
+    async fn is_swarm_enabled(&self) -> Result<bool> {
+        let info = self
+            .docker
+            .info()
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(info
+            .swarm
+            .and_then(|s| s.local_node_state)
+            .map(|s| s == LocalNodeState::ACTIVE)
+            .unwrap_or(false))
+    }
+
+    async fn swarm_init(&self, listen_addr: &str) -> Result<String> {
+        let config = SwarmInitRequest {
+            listen_addr: Some(listen_addr.to_string()),
+            ..Default::default()
+        };
+        self.docker
+            .init_swarm(config)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+
+        // After init, fetch the join token
+        let swarm_info = self
+            .docker
+            .inspect_swarm()
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+        swarm_info
+            .join_tokens
+            .and_then(|t| t.worker)
+            .ok_or_else(|| AppError::ContainerRuntime("Failed to get swarm join token".to_string()))
+    }
+
+    async fn swarm_join(&self, listen_addr: &str, remote_addr: &str, token: &str) -> Result<()> {
+        let config = SwarmJoinRequest {
+            listen_addr: Some(listen_addr.to_string()),
+            remote_addrs: Some(vec![remote_addr.to_string()]),
+            join_token: Some(token.to_string()),
+            ..Default::default()
+        };
+        self.docker
+            .join_swarm(config)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))
+    }
+
+    async fn list_nodes(&self) -> Result<Vec<crate::domain::runtime::SwarmNode>> {
+        use crate::domain::runtime::{NodeResources, SwarmNode};
+        let nodes = self
+            .docker
+            .list_nodes(None::<ListNodesOptions>)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(nodes
+            .into_iter()
+            .map(|n| SwarmNode {
+                id: n.id.unwrap_or_default(),
+                hostname: n
+                    .description
+                    .as_ref()
+                    .and_then(|d| d.hostname.clone())
+                    .unwrap_or_default(),
+                role: n
+                    .spec
+                    .as_ref()
+                    .and_then(|s| s.role.as_ref().map(|r| r.to_string()))
+                    .unwrap_or_default(),
+                status: n
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.state.as_ref().map(|st| st.to_string()))
+                    .unwrap_or_default(),
+                availability: n
+                    .spec
+                    .as_ref()
+                    .and_then(|s| s.availability.as_ref().map(|a| a.to_string()))
+                    .unwrap_or_default(),
+                addr: n.status.as_ref().and_then(|s| s.addr.clone()).unwrap_or_default(),
+                version: n
+                    .description
+                    .as_ref()
+                    .and_then(|d| d.engine.as_ref().and_then(|e| e.engine_version.clone()))
+                    .unwrap_or_default(),
+                platform: format!(
+                    "{}/{}",
+                    n.description
+                        .as_ref()
+                        .and_then(|d| d.platform.as_ref().and_then(|p| p.os.clone()))
+                        .unwrap_or_default(),
+                    n.description
+                        .as_ref()
+                        .and_then(|d| d.platform.as_ref().and_then(|p| p.architecture.clone()))
+                        .unwrap_or_default()
+                ),
+                resources: NodeResources {
+                    nano_cpus: n
+                        .description
+                        .as_ref()
+                        .and_then(|d| d.resources.as_ref().and_then(|r| r.nano_cpus))
+                        .unwrap_or_default(),
+                    memory_bytes: n
+                        .description
+                        .as_ref()
+                        .and_then(|d| d.resources.as_ref().and_then(|r| r.memory_bytes))
+                        .unwrap_or_default(),
+                },
+            })
+            .collect())
+    }
+
+    async fn inspect_node(&self, id: &str) -> Result<crate::domain::runtime::SwarmNode> {
+        use crate::domain::runtime::{NodeResources, SwarmNode};
+        let n = self
+            .docker
+            .inspect_node(id)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(SwarmNode {
+            id: n.id.unwrap_or_default(),
+            hostname: n
+                .description
+                .as_ref()
+                .and_then(|d| d.hostname.clone())
+                .unwrap_or_default(),
+            role: n
+                .spec
+                .as_ref()
+                .and_then(|s| s.role.as_ref().map(|r| r.to_string()))
+                .unwrap_or_default(),
+            status: n
+                .status
+                .as_ref()
+                .and_then(|s| s.state.as_ref().map(|st| st.to_string()))
+                .unwrap_or_default(),
+            availability: n
+                .spec
+                .as_ref()
+                .and_then(|s| s.availability.as_ref().map(|a| a.to_string()))
+                .unwrap_or_default(),
+            addr: n.status.as_ref().and_then(|s| s.addr.clone()).unwrap_or_default(),
+            version: n
+                .description
+                .as_ref()
+                .and_then(|d| d.engine.as_ref().and_then(|e| e.engine_version.clone()))
+                .unwrap_or_default(),
+            platform: format!(
+                "{}/{}",
+                n.description
+                    .as_ref()
+                    .and_then(|d| d.platform.as_ref().and_then(|p| p.os.clone()))
+                    .unwrap_or_default(),
+                n.description
+                    .as_ref()
+                    .and_then(|d| d.platform.as_ref().and_then(|p| p.architecture.clone()))
+                    .unwrap_or_default()
+            ),
+            resources: NodeResources {
+                nano_cpus: n
+                    .description
+                    .as_ref()
+                    .and_then(|d| d.resources.as_ref().and_then(|r| r.nano_cpus))
+                    .unwrap_or_default(),
+                memory_bytes: n
+                    .description
+                    .as_ref()
+                    .and_then(|d| d.resources.as_ref().and_then(|r| r.memory_bytes))
+                    .unwrap_or_default(),
+            },
+        })
+    }
+
+    async fn get_swarm_tokens(&self) -> Result<crate::domain::runtime::SwarmTokens> {
+        use crate::domain::runtime::SwarmTokens;
+        let info = self
+            .docker
+            .inspect_swarm()
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+
+        let tokens = info.join_tokens.ok_or_else(|| {
+            AppError::ContainerRuntime("Failed to get swarm join tokens".to_string())
+        })?;
+
+        Ok(SwarmTokens {
+            manager: tokens.manager.unwrap_or_default(),
+            worker: tokens.worker.unwrap_or_default(),
+        })
     }
 }

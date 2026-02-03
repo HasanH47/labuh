@@ -47,7 +47,10 @@ async-trait = "0.1"
 anyhow = "1"
 
 # Container runtime (Docker/containerd via Docker API)
-bollard = "0.18"
+bollard = "0.20"
+# HTTP client and body utilities
+hyper = { version = "1", features = ["full"] }
+http-body-util = "0.1"
 futures = "0.3"
 
 # System info

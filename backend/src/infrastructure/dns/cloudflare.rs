@@ -6,15 +6,21 @@ use serde_json;
 
 pub struct CloudflareProvider {
     api_token: String,
+    account_id: Option<String>,
     client: reqwest::Client,
 }
 
 impl CloudflareProvider {
-    pub fn new(api_token: String) -> Self {
+    pub fn new(api_token: String, account_id: Option<String>) -> Self {
         Self {
             api_token,
+            account_id,
             client: reqwest::Client::new(),
         }
+    }
+
+    pub fn get_account_id(&self) -> Option<String> {
+        self.account_id.clone()
     }
 }
 
@@ -25,6 +31,7 @@ impl DnsProvider for CloudflareProvider {
         domain: &str,
         record_type: &str,
         content: &str,
+        proxied: bool,
     ) -> Result<String> {
         let zone_id = self.get_zone_id(domain).await?;
         let url = format!(
@@ -41,7 +48,7 @@ impl DnsProvider for CloudflareProvider {
                 "name": domain,
                 "content": content,
                 "ttl": 1, // Auto
-                "proxied": false
+                "proxied": proxied
             }))
             .send()
             .await
@@ -148,6 +155,7 @@ impl DnsProvider for CloudflareProvider {
         record_id: &str,
         record_type: &str,
         content: &str,
+        proxied: bool,
     ) -> Result<()> {
         let zone_id = self.get_zone_id(domain).await?;
         let url = format!(
@@ -164,7 +172,7 @@ impl DnsProvider for CloudflareProvider {
                 "name": domain,
                 "content": content,
                 "ttl": 1, // Auto
-                "proxied": false
+                "proxied": proxied
             }))
             .send()
             .await
@@ -249,5 +257,73 @@ impl CloudflareProvider {
                 domain
             ))),
         }
+    }
+
+    pub async fn update_tunnel_configuration(
+        &self,
+        account_id: &str,
+        tunnel_id: &str,
+        ingress_rules: serde_json::Value,
+    ) -> Result<()> {
+        let url = format!(
+            "https://api.cloudflare.com/client/v4/accounts/{}/cfd_tunnel/{}/configurations",
+            account_id, tunnel_id
+        );
+
+        let response = self
+            .client
+            .put(&url)
+            .bearer_auth(&self.api_token)
+            .json(&serde_json::json!({
+                "config": ingress_rules
+            }))
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Cloudflare API error: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(AppError::Internal(format!(
+                "Cloudflare API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_tunnel_configuration(
+        &self,
+        account_id: &str,
+        tunnel_id: &str,
+    ) -> Result<serde_json::Value> {
+        let url = format!(
+            "https://api.cloudflare.com/client/v4/accounts/{}/cfd_tunnel/{}/configurations",
+            account_id, tunnel_id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.api_token)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Cloudflare API error: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(AppError::Internal(format!(
+                "Cloudflare API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        let body: serde_json::Value = response.json().await.map_err(|e| {
+            AppError::Internal(format!("Failed to parse Cloudflare response: {}", e))
+        })?;
+
+        Ok(body["result"].clone())
     }
 }

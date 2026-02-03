@@ -223,6 +223,7 @@ export interface Domain {
   type: DomainType;
   tunnel_id?: string;
   dns_record_id?: string;
+  proxied: boolean;
   created_at: string;
 }
 
@@ -236,6 +237,7 @@ export interface CreateDomain {
   tunnel_token?: string;
   dns_record_type?: string;
   dns_record_content?: string;
+  proxied?: boolean;
 }
 
 export interface DnsConfig {
@@ -344,6 +346,21 @@ export interface TemplateResponse {
   name: string;
   description: string;
   icon: string;
+}
+
+export interface SwarmNode {
+  id: string;
+  hostname: string;
+  role: string;
+  status: string;
+  availability: string;
+  addr: string;
+  version: string;
+  platform: string;
+  resources: {
+    nano_cpus: number;
+    memory_bytes: number;
+  };
 }
 
 export const api = {
@@ -622,12 +639,17 @@ export const api = {
         domain: string,
         recordType: string,
         content: string,
+        proxied: boolean,
       ) => {
         return fetchApi<{ status: string }>(
           `/stacks/${stackId}/domains/${encodeURIComponent(domain)}/dns`,
           {
             method: "PUT",
-            body: JSON.stringify({ record_type: recordType, content }),
+            body: JSON.stringify({
+              record_type: recordType,
+              content,
+              proxied,
+            }),
           },
         );
       },
@@ -842,6 +864,44 @@ export const api = {
     listRemoteRecords: async (teamId: string, provider: string) => {
       return fetchApi<RemoteDnsRecord[]>(
         `/teams/${teamId}/dns-configs/${provider}/remote-records`,
+      );
+    },
+  },
+
+  nodes: {
+    list: async () => {
+      return fetchApi<SwarmNode[]>("/nodes");
+    },
+
+    get: async (id: string) => {
+      return fetchApi<SwarmNode>(`/nodes/${id}`);
+    },
+
+    swarm: async () => {
+      return fetchApi<{ enabled: boolean }>("/nodes/swarm");
+    },
+
+    initSwarm: async (listenAddr: string) => {
+      return fetchApi<{ token: string }>("/nodes/swarm/init", {
+        method: "POST",
+        body: JSON.stringify({ listen_addr: listenAddr }),
+      });
+    },
+
+    joinSwarm: async (data: {
+      listen_addr: string;
+      remote_addr: string;
+      token: string;
+    }) => {
+      return fetchApi<{ status: string }>("/nodes/swarm/join", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    getSwarmTokens: async () => {
+      return fetchApi<{ manager: string; worker: string }>(
+        "/nodes/swarm/tokens",
       );
     },
   },

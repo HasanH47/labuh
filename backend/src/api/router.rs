@@ -116,6 +116,7 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
                 environment_routes(env_uc.clone(), stack_uc.clone()),
             )
             .nest("/templates", template_routes(template_uc.clone()))
+            .nest("/nodes", node_routes(state.node_usecase.clone()))
             .merge(dns_routes(state.clone()));
     }
 

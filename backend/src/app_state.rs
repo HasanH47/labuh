@@ -8,6 +8,7 @@ use crate::infrastructure::tunnel::manager::TunnelManager;
 use crate::usecase::auth::AuthUsecase;
 use crate::usecase::deployment_log::DeploymentLogUsecase;
 use crate::usecase::environment::EnvironmentUsecase;
+use crate::usecase::node::NodeUsecase;
 use crate::usecase::registry::RegistryUsecase;
 use crate::usecase::resource::ResourceUsecase;
 use crate::usecase::stack::StackUsecase;
@@ -28,6 +29,7 @@ pub struct AppState {
     // Usecases
     pub auth_usecase: Arc<AuthUsecase>,
     pub system_usecase: Arc<SystemUsecase>,
+    pub node_usecase: Arc<NodeUsecase>,
 
     // Optional/Conditional Usecases
     pub env_usecase: Option<Arc<EnvironmentUsecase>>,
@@ -72,11 +74,12 @@ impl AppState {
         let mut app_state = Self {
             _config: config.clone(),
             _pool: pool,
-            runtime,
+            runtime: runtime.clone(),
             caddy_client,
             tunnel_manager: None,
             auth_usecase,
             system_usecase,
+            node_usecase: Arc::new(NodeUsecase::new(runtime.clone())),
             env_usecase: None,
             registry_usecase: None,
             stack_usecase: None,

@@ -28,6 +28,7 @@ pub struct AddDomainRequest {
     pub tunnel_token: Option<String>,
     pub dns_record_type: Option<String>,
     pub dns_record_content: Option<String>,
+    pub proxied: bool,
 }
 
 impl DomainUsecase {
@@ -109,7 +110,12 @@ impl DomainUsecase {
                 .await?;
             Some(
                 provider_impl
-                    .create_record(&request.domain, &record_type, &content)
+                    .create_record(
+                        &request.domain,
+                        &record_type,
+                        &content,
+                        request.proxied,
+                    )
                     .await?,
             )
         } else {
@@ -130,8 +136,9 @@ impl DomainUsecase {
             verified: false,
             provider: request.provider,
             r#type: request.domain_type.clone(),
-            tunnel_id: request.tunnel_id,
+            tunnel_id: request.tunnel_id.clone(),
             dns_record_id: dns_record_id.clone(),
+            proxied: request.proxied,
             created_at: now,
         };
 
@@ -156,6 +163,46 @@ impl DomainUsecase {
                     .await;
                 let _ = self.domain_repo.delete(&id).await;
                 return Err(e);
+            }
+        }
+
+        // 3. Update Tunnel configuration if needed
+        if matches!(request.domain_type, DomainType::Tunnel) {
+            if let (Some(tunnel_id), Some(_tm)) = (&request.tunnel_id, &self.tunnel_manager) {
+                let stack = self
+                    .stack_repo
+                    .find_by_id_internal(&request.stack_id)
+                    .await?;
+
+                if let Ok(cf) = self.dns_usecase.get_cloudflare_provider(&stack.team_id).await {
+                    if let Some(account_id) = cf.get_account_id() {
+                        if let Ok(mut config) =
+                            cf.get_tunnel_configuration(&account_id, tunnel_id).await
+                        {
+                            if let Some(ingress) = config["ingress"].as_array_mut() {
+                                // Add new rule before the last catch-all rule
+                                let new_rule = serde_json::json!({
+                                    "hostname": request.domain,
+                                    "service": format!("http://{}:{}", request.container_name, request.container_port)
+                                });
+
+                                // Find the last rule (catch-all)
+                                let catch_all = ingress.pop();
+
+                                ingress.push(new_rule);
+
+                                if let Some(ca) = catch_all {
+                                    ingress.push(ca);
+                                }
+
+                                // Update configuration
+                                let _ = cf
+                                    .update_tunnel_configuration(&account_id, tunnel_id, config)
+                                    .await;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -213,6 +260,32 @@ impl DomainUsecase {
         // Remove from Caddy
         if matches!(domain_record.r#type, DomainType::Caddy) {
             let _ = self.caddy_client.remove_route(&domain_record.domain).await;
+        }
+
+        // Remove from Tunnel configuration if needed
+        if matches!(domain_record.r#type, DomainType::Tunnel) {
+            if let Some(tunnel_id) = &domain_record.tunnel_id {
+                let stack = self.stack_repo.find_by_id_internal(stack_id).await?;
+                if let Ok(cf) = self.dns_usecase.get_cloudflare_provider(&stack.team_id).await {
+                    if let Some(account_id) = cf.get_account_id() {
+                        if let Ok(mut config) =
+                            cf.get_tunnel_configuration(&account_id, tunnel_id).await
+                        {
+                            if let Some(ingress) = config["ingress"].as_array_mut() {
+                                // Filter out the rule for this domain
+                                ingress.retain(|rule| {
+                                    rule["hostname"].as_str() != Some(&domain_record.domain)
+                                });
+
+                                // Update configuration
+                                let _ = cf
+                                    .update_tunnel_configuration(&account_id, tunnel_id, config)
+                                    .await;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Delete from database
@@ -284,6 +357,7 @@ impl DomainUsecase {
         domain: &str,
         record_type: &str,
         content: &str,
+        proxied: bool,
     ) -> Result<()> {
         let domain_record = self
             .domain_repo
@@ -304,7 +378,7 @@ impl DomainUsecase {
                 .get_provider(&stack.team_id, domain_record.provider.clone())
                 .await?;
             provider_impl
-                .update_record(domain, record_id, record_type, content)
+                .update_record(domain, record_id, record_type, content, proxied)
                 .await?;
         } else {
             return Err(AppError::Validation(

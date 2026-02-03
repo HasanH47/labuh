@@ -4,6 +4,7 @@ pub mod dns;
 pub mod domain;
 pub mod environment;
 pub mod metrics_collector;
+pub mod node;
 pub mod registry;
 pub mod resource;
 pub mod scheduler;

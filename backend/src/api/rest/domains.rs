@@ -21,6 +21,7 @@ pub struct ListDomainsQuery {
 pub struct UpdateDnsRequest {
     pub record_type: String,
     pub content: String,
+    pub proxied: bool,
 }
 
 async fn list_all_domains(
@@ -97,6 +98,7 @@ async fn add_domain(
             tunnel_token: request.tunnel_token.clone(),
             dns_record_type: request.dns_record_type.clone(),
             dns_record_content: request.dns_record_content.clone(),
+            proxied: request.proxied.unwrap_or(false),
         })
         .await?;
     Ok(Json(domain.into()))
@@ -146,7 +148,13 @@ async fn update_dns(
 
     stack_uc.get_stack(&stack_id, &current_user.id).await?;
     domain_uc
-        .update_domain_dns(&stack_id, &domain, &request.record_type, &request.content)
+        .update_domain_dns(
+            &stack_id,
+            &domain,
+            &request.record_type,
+            &request.content,
+            request.proxied,
+        )
         .await?;
 
     Ok(Json(serde_json::json!({ "status": "updated" })))

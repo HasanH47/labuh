@@ -15,6 +15,21 @@ impl DnsUsecase {
         Self { dns_repo }
     }
 
+    pub async fn get_cloudflare_provider(&self, team_id: &str) -> Result<CloudflareProvider> {
+        let config_record = self
+            .dns_repo
+            .find_by_team_and_provider(team_id, "Cloudflare")
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound("Cloudflare configuration not found for team".to_string())
+            })?;
+
+        let config: CloudflareConfig = serde_json::from_str(&config_record.config)
+            .map_err(|e| AppError::Internal(format!("Invalid Cloudflare config: {}", e)))?;
+
+        Ok(CloudflareProvider::new(config.api_token, config.account_id))
+    }
+
     pub async fn get_provider(
         &self,
         team_id: &str,
@@ -38,7 +53,10 @@ impl DnsUsecase {
                 let config: CloudflareConfig = serde_json::from_str(&config_record.config)
                     .map_err(|e| AppError::Internal(format!("Invalid Cloudflare config: {}", e)))?;
 
-                Ok(Box::new(CloudflareProvider::new(config.api_token)))
+                Ok(Box::new(CloudflareProvider::new(
+                    config.api_token,
+                    config.account_id,
+                )))
             }
             DomainProvider::CPanel => Ok(Box::new(CPanelProvider::new())),
         }
