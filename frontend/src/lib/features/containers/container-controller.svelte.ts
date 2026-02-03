@@ -1,12 +1,20 @@
-import { api, type Container, type ContainerStats } from "$lib/api";
+import {
+  api,
+  type Container,
+  type ContainerStats,
+  type ContainerResource,
+  type ResourceMetric,
+} from "$lib/api";
 import { goto } from "$app/navigation";
 
 export class ContainerController {
   id: string;
   container = $state<Container | null>(null);
   stats = $state<ContainerStats | null>(null);
+  metrics = $state<ResourceMetric[]>([]);
   logs = $state<string[]>([]);
   loading = $state(true);
+  selectedRange = $state("1h");
   logsLoading = $state(false);
   actionLoading = $state(false);
 
@@ -17,7 +25,11 @@ export class ContainerController {
   async init() {
     await this.loadContainer();
     if (this.container) {
-      await Promise.all([this.loadStats(), this.loadLogs()]);
+      await Promise.all([
+        this.loadStats(),
+        this.loadLogs(),
+        this.loadMetrics(),
+      ]);
     }
   }
 
@@ -68,6 +80,23 @@ export class ContainerController {
     await api.containers.restart(this.id);
     await this.loadContainer();
     this.actionLoading = false;
+  }
+
+  async loadMetrics() {
+    if (!this.container) return;
+    const stackId = this.container.labels?.["labuh.stack.id"];
+    if (!stackId) return;
+
+    const result = await api.stacks.resources.getMetrics(
+      stackId,
+      this.selectedRange,
+    );
+    if (result.data) {
+      // Filter metrics for this specific container
+      this.metrics = result.data.filter(
+        (m) => m.container_id === this.container?.id,
+      );
+    }
   }
 
   async remove() {

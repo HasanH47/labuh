@@ -51,12 +51,20 @@
                 <div class="flex items-center gap-3 overflow-hidden">
                 <div class="flex-shrink-0">
                     {#if domain.type === 'Tunnel'}
-                        <div class="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                            <Radio class="h-4 w-4 text-blue-500" />
+                        <div class="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center overflow-hidden">
+                            {#if domain.provider === 'Cloudflare'}
+                                <img src="/logo/cloudflare/logo-1.png" alt="CF" class="h-5 w-5 object-contain" />
+                            {:else}
+                                <Radio class="h-4 w-4 text-blue-500" />
+                            {/if}
                         </div>
                     {:else}
-                        <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Globe class="h-4 w-4 text-primary" />
+                        <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                            {#if domain.provider === 'Cloudflare'}
+                                <img src="/logo/cloudflare/logo-1.png" alt="CF" class="h-5 w-5 object-contain" />
+                            {:else}
+                                <Globe class="h-4 w-4 text-primary" />
+                            {/if}
                         </div>
                     {/if}
                 </div>

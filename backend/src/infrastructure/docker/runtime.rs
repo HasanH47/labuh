@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::domain::runtime::{
-    ContainerConfig, ContainerInfo, EndpointInfo, NetworkInfo, RuntimePort,
+    ContainerConfig, ContainerInfo, ContainerPort, EndpointInfo, NetworkInfo, RuntimePort,
 };
 use crate::error::{AppError, Result};
 
@@ -255,6 +255,17 @@ impl RuntimePort for DockerRuntimeAdapter {
                     })
                     .collect();
 
+                let ports = c.ports.map(|ps| {
+                    ps.into_iter()
+                        .map(|p| ContainerPort {
+                            ip: p.ip,
+                            private_port: p.private_port,
+                            public_port: p.public_port,
+                            port_type: p.typ.map(|t| t.to_string()).unwrap_or_else(|| "tcp".to_string()),
+                        })
+                        .collect()
+                });
+
                 ContainerInfo {
                     id: c.id.unwrap_or_default(),
                     names: c.names.unwrap_or_default(),
@@ -263,6 +274,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                     status: c.status.unwrap_or_default(),
                     labels: c.labels.unwrap_or_default(),
                     networks,
+                    ports,
                 }
             })
             .collect())
@@ -295,14 +307,45 @@ impl RuntimePort for DockerRuntimeAdapter {
             })
             .collect();
 
+        let ports = container.network_settings.as_ref().and_then(|ns| {
+            ns.ports.as_ref().map(|ps| {
+                ps.iter()
+                    .flat_map(|(k, v)| {
+                        let parts: Vec<&str> = k.split('/').collect();
+                        let private_port = parts[0].parse::<u16>().unwrap_or(0);
+                        let port_type = parts.get(1).cloned().unwrap_or("tcp").to_string();
+
+                        if let Some(bindings) = v {
+                            bindings
+                                .iter()
+                                .map(|b| ContainerPort {
+                                    ip: b.host_ip.clone(),
+                                    private_port,
+                                    public_port: b.host_port.as_ref().and_then(|p| p.parse().ok()),
+                                    port_type: port_type.clone(),
+                                })
+                                .collect::<Vec<_>>()
+                        } else {
+                            vec![ContainerPort {
+                                ip: None,
+                                private_port,
+                                public_port: None,
+                                port_type,
+                            }]
+                        }
+                    })
+                    .collect()
+            })
+        });
+
         Ok(ContainerInfo {
             id: container.id.unwrap_or_default(),
-            names: container.name.map(|n| vec![n]).unwrap_or_default(),
+            names: vec![container.name.unwrap_or_default()],
             image: container
                 .config
                 .as_ref()
                 .and_then(|c| c.image.clone())
-                .unwrap_or_default(),
+                .unwrap_or_else(|| "unknown".to_string()),
             state: container
                 .state
                 .as_ref()
@@ -321,6 +364,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                 .and_then(|c| c.labels.clone())
                 .unwrap_or_default(),
             networks,
+            ports,
         })
     }
 

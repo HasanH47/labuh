@@ -91,10 +91,10 @@ impl DomainUsecase {
                         ("A".to_string(), ip)
                     }
                     DomainType::Tunnel => {
-                        let target = format!(
-                            "{}.cfargotunnel.com",
-                            request.tunnel_id.as_deref().unwrap_or("unknown")
-                        );
+                        let tunnel_id = request.tunnel_id.as_deref().ok_or_else(|| {
+                            AppError::BadRequest("Tunnel ID is required for Tunnel type domain".to_string())
+                        })?;
+                        let target = format!("{}.cfargotunnel.com", tunnel_id);
                         ("CNAME".to_string(), target)
                     }
                 }
@@ -388,11 +388,13 @@ impl DomainUsecase {
                                     ("A".to_string(), ip)
                                 }
                                 DomainType::Tunnel => {
-                                    let target = format!(
-                                        "{}.cfargotunnel.com",
-                                        domain.tunnel_id.as_deref().unwrap_or("unknown")
-                                    );
-                                    ("CNAME".to_string(), target)
+                                    if let Some(tunnel_id) = domain.tunnel_id.as_deref() {
+                                        let target = format!("{}.cfargotunnel.com", tunnel_id);
+                                        ("CNAME".to_string(), target)
+                                    } else {
+                                        // Skip if tunnel_id is missing during sync
+                                        continue;
+                                    }
                                 }
                             };
 

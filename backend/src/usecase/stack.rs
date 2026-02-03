@@ -64,10 +64,27 @@ impl StackUsecase {
             let mut stacks = self.repo.list_by_team(&team.id).await?;
             all_stacks.append(&mut stacks);
         }
-        Ok(all_stacks)
+
+        let mut enriched_stacks = Vec::new();
+        for mut stack in all_stacks {
+            // Get health to determine real status
+            if let Ok(health) = self.get_stack_health(&stack.id, user_id).await {
+                stack.status = health.status;
+            }
+            enriched_stacks.push(stack);
+        }
+        Ok(enriched_stacks)
     }
 
     pub async fn get_stack(&self, id: &str, user_id: &str) -> Result<Stack> {
+        let mut stack = self.get_stack_no_health(id, user_id).await?;
+        if let Ok(health) = self.get_stack_health(&stack.id, user_id).await {
+            stack.status = health.status;
+        }
+        Ok(stack)
+    }
+
+    pub async fn get_stack_no_health(&self, id: &str, user_id: &str) -> Result<Stack> {
         let stack = self.repo.find_by_id_internal(id).await?;
         let _role = self
             .team_repo
@@ -489,7 +506,7 @@ impl StackUsecase {
     }
 
     pub async fn get_stack_health(&self, id: &str, user_id: &str) -> Result<StackHealth> {
-        let stack = self.get_stack(id, user_id).await?;
+        let stack = self.get_stack_no_health(id, user_id).await?;
         let containers = self.get_stack_containers(&stack.id).await?;
 
         let total = containers.len();

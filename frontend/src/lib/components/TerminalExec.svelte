@@ -6,6 +6,8 @@
 
 	import { API_URL } from '$lib/api';
 	import { browser } from '$app/environment';
+	import { X, Maximize2, Minimize2 } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button';
 
 	interface Props {
 		containerId: string;
@@ -18,15 +20,21 @@
 	let terminal: Terminal;
 	let fitAddon: FitAddon;
 	let socket: WebSocket;
+	let isMaximized = $state(false);
+
+	function toggleMaximize() {
+		isMaximized = !isMaximized;
+		setTimeout(() => fitAddon.fit(), 100);
+	}
 
 	onMount(() => {
 		terminal = new Terminal({
 			cursorBlink: true,
 			theme: {
-				background: '#1a1a1a',
-				foreground: '#f0f0f0'
+				background: '#1a1b26',
+				foreground: '#a9b1d6'
 			},
-			fontFamily: 'JetBrains Mono, Menlo, Courier New, monospace',
+			fontFamily: 'Menlo, Monaco, "Courier New", monospace',
 			fontSize: 14
 		});
 
@@ -78,17 +86,39 @@
 	});
 </script>
 
-<div class="fixed inset-0 z-50 flex flex-col bg-black/80 p-4 backdrop-blur-sm">
-	<div class="mb-2 flex items-center justify-between">
-		<h3 class="font-mono text-sm text-white">Terminal: {containerId.slice(0, 12)}</h3>
-		<button
-			onclick={() => onClose()}
-			class="rounded bg-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white"
-		>
-			Close
-		</button>
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" class:p-0={isMaximized}>
+	<div class="flex flex-col bg-[#1a1b26] rounded-xl border border-white/10 shadow-2xl overflow-hidden transition-all duration-300"
+		 class:w-full={isMaximized} class:h-full={isMaximized}
+		 class:w-[800px]={!isMaximized} class:h-[500px]={!isMaximized}>
+
+		<!-- Titlebar -->
+		<div class="flex items-center justify-between px-4 py-2 bg-black/20 border-b border-white/5">
+			<div class="flex items-center gap-2">
+				<div class="flex gap-1.5">
+					<div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+					<div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+					<div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+				</div>
+				<span class="text-xs font-medium text-white/70 ml-2">Terminal: {containerId.slice(0, 12)}</span>
+			</div>
+
+			<div class="flex items-center gap-1">
+				<Button variant="ghost" size="icon" class="h-8 w-8 text-white/50 hover:text-white" onclick={toggleMaximize}>
+					{#if isMaximized}
+						<Minimize2 class="h-4 w-4" />
+					{:else}
+						<Maximize2 class="h-4 w-4" />
+					{/if}
+				</Button>
+				<Button variant="ghost" size="icon" class="h-8 w-8 text-white/50 hover:text-red-400" onclick={onClose}>
+					<X class="h-4 w-4" />
+				</Button>
+			</div>
+		</div>
+
+		<!-- Terminal Area -->
+		<div bind:this={terminalElement} class="flex-1 p-2 overflow-hidden bg-transparent"></div>
 	</div>
-	<div bind:this={terminalElement} class="h-full w-full overflow-hidden rounded bg-[#1a1a1a] p-2"></div>
 </div>
 
 <style>

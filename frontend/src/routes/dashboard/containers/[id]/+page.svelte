@@ -9,6 +9,7 @@
 	import ContainerInfo from '$lib/features/containers/components/ContainerInfo.svelte';
 	import ResourceUsage from '$lib/features/containers/components/ResourceUsage.svelte';
 	import TerminalLogs from '$lib/features/containers/components/TerminalLogs.svelte';
+	import ContainerMetrics from '$lib/features/containers/components/ContainerMetrics.svelte';
 
 	const containerId = $page.params.id || '';
 	let ctrl = $state(new ContainerController(containerId));
@@ -56,6 +57,7 @@
 	{:else}
 		<ContainerInfo bind:ctrl />
 		<ResourceUsage bind:ctrl />
+		<ContainerMetrics bind:ctrl />
 		<TerminalLogs bind:ctrl />
 	{/if}
 </div>

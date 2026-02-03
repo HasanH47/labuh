@@ -215,7 +215,6 @@ export class StackController {
     const serviceName = this.redeployService;
     this.showRedeployConfirm = false;
     this.actionLoading = true;
-    this.showBuildLogs = true;
     try {
       await api.stacks.redeploy(this.id, serviceName);
       await Promise.all([

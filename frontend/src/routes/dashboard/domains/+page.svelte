@@ -68,8 +68,12 @@
 						{#each ctrl.dnsConfigs as config}
 							<div class="flex items-center justify-between border rounded-lg p-2 bg-muted/50 transition-all hover:bg-muted">
 								<div class="flex items-center gap-2">
-									<div class="bg-blue-500/10 p-1.5 rounded-md">
-										<Cloud class="h-4 w-4 text-blue-500" />
+									<div class="h-8 w-8 rounded-md flex items-center justify-center overflow-hidden">
+										{#if config.provider === 'Cloudflare'}
+											<img src="/logo/cloudflare/logo-1.png" alt="Cloudflare" class="h-6 w-6 object-contain" />
+										{:else}
+											<Cloud class="h-4 w-4 text-blue-500" />
+										{/if}
 									</div>
 									<span class="text-sm font-medium">{config.provider}</span>
 								</div>
@@ -190,9 +194,9 @@
                                     {/if}
                                 </div>
                                 <div>
-                                    <span class="text-xs flex items-center gap-1 text-muted-foreground">
+                                    <span class="text-xs flex items-center gap-1.5 text-muted-foreground">
                                         {#if domain.provider === 'Cloudflare'}
-                                            <Cloud class="h-3 w-3 text-blue-400" />
+                                            <img src="/logo/cloudflare/logo-1.png" alt="Cloudflare" class="h-3.5 w-3.5 object-contain" />
                                             Cloudflare
                                         {:else if domain.provider === 'CPanel'}
                                             <Settings2 class="h-3 w-3 text-orange-400" />

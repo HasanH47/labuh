@@ -70,8 +70,9 @@ pub async fn auth_middleware(
         Ok(claims) => {
             // Verify user still exists in database
             match auth_usecase.get_user_by_id(&claims.sub).await {
-                Ok(_) => {
-                    let current_user = CurrentUser::from(claims);
+                Ok(user) => {
+                    let mut current_user = CurrentUser::from(claims);
+                    current_user.role = user.role;
                     request.extensions_mut().insert(current_user);
                     Ok(next.run(request).await)
                 }

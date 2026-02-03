@@ -104,6 +104,15 @@ pub struct ContainerInfo {
     pub status: String,
     pub labels: std::collections::HashMap<String, String>,
     pub networks: std::collections::HashMap<String, EndpointInfo>,
+    pub ports: Option<Vec<ContainerPort>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ContainerPort {
+    pub ip: Option<String>,
+    pub private_port: u16,
+    pub public_port: Option<u16>,
+    pub port_type: String, // "tcp", "udp"
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
