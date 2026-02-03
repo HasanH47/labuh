@@ -7,7 +7,7 @@ use bollard::models::{
 use bollard::query_parameters::{
     BuildImageOptions, CreateContainerOptions, CreateImageOptions, ListContainersOptions,
     ListImagesOptions, ListNodesOptions, LogsOptions, RemoveContainerOptions, RemoveImageOptions,
-    StartContainerOptions, StatsOptions, StopContainerOptions,
+    StartContainerOptions, StatsOptions, StopContainerOptions, UpdateServiceOptions,
 };
 use bollard::Docker;
 use futures::StreamExt;
@@ -326,7 +326,8 @@ impl RuntimePort for DockerRuntimeAdapter {
         let mut stats_stream = self.docker.stats(id, Some(options));
 
         if let Some(stats_result) = stats_stream.next().await {
-            let stats = stats_result.map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+            let stats = stats_result
+                .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
 
             // Calculate CPU percentage
             let cpu_usage = stats
@@ -382,14 +383,16 @@ impl RuntimePort for DockerRuntimeAdapter {
             // Network stats
             let (network_rx, network_tx) = stats
                 .networks
-                .map(|nets: HashMap<String, bollard::models::ContainerNetworkStats>| {
-                    nets.values().fold((0u64, 0u64), |(rx, tx), net| {
-                        (
-                            rx + net.rx_bytes.unwrap_or(0),
-                            tx + net.tx_bytes.unwrap_or(0),
-                        )
-                    })
-                })
+                .map(
+                    |nets: HashMap<String, bollard::models::ContainerNetworkStats>| {
+                        nets.values().fold((0u64, 0u64), |(rx, tx), net| {
+                            (
+                                rx + net.rx_bytes.unwrap_or(0),
+                                tx + net.tx_bytes.unwrap_or(0),
+                            )
+                        })
+                    },
+                )
                 .unwrap_or((0, 0));
 
             return Ok(crate::domain::runtime::ContainerStats {
@@ -440,7 +443,8 @@ impl RuntimePort for DockerRuntimeAdapter {
             use hyper::body::Bytes;
 
             let body = Full::new(Bytes::from(tar_data_stream));
-            let mut stream = docker.build_image(options, None, Some(http_body_util::Either::Left(body)));
+            let mut stream =
+                docker.build_image(options, None, Some(http_body_util::Either::Left(body)));
             while let Some(res) = stream.next().await {
                 match res {
                     Ok(inter) => {
@@ -450,7 +454,9 @@ impl RuntimePort for DockerRuntimeAdapter {
                     }
                     Err(e) => {
                         let _ = tx
-                            .send(Err::<String, AppError>(AppError::ContainerRuntime(e.to_string())))
+                            .send(Err::<String, AppError>(AppError::ContainerRuntime(
+                                e.to_string(),
+                            )))
                             .await;
                         break;
                     }
@@ -691,7 +697,11 @@ impl RuntimePort for DockerRuntimeAdapter {
                     .as_ref()
                     .and_then(|s| s.availability.as_ref().map(|a| a.to_string()))
                     .unwrap_or_default(),
-                addr: n.status.as_ref().and_then(|s| s.addr.clone()).unwrap_or_default(),
+                addr: n
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.addr.clone())
+                    .unwrap_or_default(),
                 version: n
                     .description
                     .as_ref()
@@ -753,7 +763,11 @@ impl RuntimePort for DockerRuntimeAdapter {
                 .as_ref()
                 .and_then(|s| s.availability.as_ref().map(|a| a.to_string()))
                 .unwrap_or_default(),
-            addr: n.status.as_ref().and_then(|s| s.addr.clone()).unwrap_or_default(),
+            addr: n
+                .status
+                .as_ref()
+                .and_then(|s| s.addr.clone())
+                .unwrap_or_default(),
             version: n
                 .description
                 .as_ref()
@@ -801,5 +815,48 @@ impl RuntimePort for DockerRuntimeAdapter {
             manager: tokens.manager.unwrap_or_default(),
             worker: tokens.worker.unwrap_or_default(),
         })
+    }
+
+    async fn update_service_scale(&self, service_name: &str, replicas: u64) -> Result<()> {
+        use bollard::models::{ServiceSpecMode, ServiceSpecModeReplicated};
+
+        // 1. Inspect service to get its current version and spec
+        let service = self
+            .docker
+            .inspect_service(service_name, None)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+
+        let service_id = service
+            .id
+            .ok_or_else(|| AppError::Internal("Service ID missing".to_string()))?;
+        let version = service
+            .version
+            .and_then(|v| v.index)
+            .ok_or_else(|| AppError::Internal("Service version missing".to_string()))?;
+
+        // 2. Prepare the new spec based on old one
+        let mut spec = service.spec.unwrap_or_default();
+
+        // Update replicas
+        spec.mode = Some(ServiceSpecMode {
+            replicated: Some(ServiceSpecModeReplicated {
+                replicas: Some(replicas as i64),
+            }),
+            ..Default::default()
+        });
+
+        // 3. Update the service
+        let options = UpdateServiceOptions {
+            version: version as i32,
+            ..Default::default()
+        };
+
+        self.docker
+            .update_service(&service_id, spec, options, None)
+            .await
+            .map_err(|e: bollard::errors::Error| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(())
     }
 }

@@ -2,6 +2,7 @@ pub mod deployment_log;
 pub mod dns;
 pub mod domain;
 pub mod environment;
+pub mod metrics;
 pub mod registry;
 pub mod resource;
 pub mod stack;

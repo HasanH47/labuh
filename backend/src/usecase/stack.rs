@@ -923,6 +923,25 @@ impl StackUsecase {
         self.get_stack(&stack.id, user_id).await
     }
 
+    pub async fn scale_service(
+        &self,
+        stack_id: &str,
+        service_name: &str,
+        replicas: u64,
+        user_id: &str,
+    ) -> Result<()> {
+        let stack = self.get_stack(stack_id, user_id).await?;
+
+        // Construct service name (usually stackname_servicename in Docker Swarm)
+        let swarm_service_name = format!("{}_{}", stack.name, service_name);
+
+        self.runtime
+            .update_service_scale(&swarm_service_name, replicas)
+            .await?;
+
+        Ok(())
+    }
+
     async fn apply_resource_limits(
         &self,
         stack_id: &str,

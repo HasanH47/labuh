@@ -1,10 +1,12 @@
 <script lang="ts">
   import * as Card from '$lib/components/ui/card';
   import { Badge } from '$lib/components/ui/badge';
-  import { Server, Cpu, Activity, Database } from '@lucide/svelte';
+  import { Server, Cpu, Activity, Database, Monitor } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
   import type { SwarmNode } from '$lib/api';
+  import type { NodeListController } from '../node-list-controller.svelte';
 
-  let { node } = $props<{ node: SwarmNode }>();
+  let { node, ctrl } = $props<{ node: SwarmNode, ctrl: NodeListController }>();
 
   function getStatusVariant(status: string): "default" | "destructive" | "outline" | "secondary" {
     switch (status.toLowerCase()) {
@@ -58,6 +60,12 @@
     <div class="mt-4 pt-4 border-t text-xs text-muted-foreground flex justify-between">
       <span>{node.platform}</span>
       <span>v{node.version}</span>
+    </div>
+    <div class="mt-4 flex gap-2">
+      <Button variant="outline" size="sm" class="w-full gap-2" onclick={() => ctrl.openTerminal(node.id, node.hostname)}>
+        <Monitor class="h-4 w-4" />
+        Terminal
+      </Button>
     </div>
   </Card.Content>
 </Card.Root>

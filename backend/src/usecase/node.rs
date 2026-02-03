@@ -33,7 +33,9 @@ impl NodeUsecase {
         remote_addr: &str,
         token: &str,
     ) -> Result<()> {
-        self.runtime.swarm_join(listen_addr, remote_addr, token).await
+        self.runtime
+            .swarm_join(listen_addr, remote_addr, token)
+            .await
     }
 
     pub async fn get_tokens(&self) -> Result<SwarmTokens> {

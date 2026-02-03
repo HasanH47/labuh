@@ -16,6 +16,7 @@
 	import ComposeEditor from '$lib/features/stacks/components/ComposeEditor.svelte';
 	import LogViewer from '$lib/features/stacks/components/LogViewer.svelte';
 	import StackHealth from '$lib/features/stacks/components/StackHealth.svelte';
+	import ServiceScaleDialog from '$lib/features/stacks/components/ServiceScaleDialog.svelte';
 	import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -131,4 +132,11 @@
 	confirmText="Regenerate"
 	variant="destructive"
 	onConfirm={() => ctrl.confirmRegenerateWebhook()}
+/>
+
+<ServiceScaleDialog
+	bind:open={ctrl.showScaleConfirm}
+	serviceName={ctrl.scaleServiceTarget || ''}
+	initialReplicas={ctrl.scaleReplicas}
+	onConfirm={(r: number) => ctrl.confirmScale(r)}
 />

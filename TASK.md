@@ -183,19 +183,19 @@
   - [x] Resolve all TypeScript errors (svelte-check)
   - [x] Verify production build and reactivity stability
 
-### Phase 20: Docker Swarm & Multi-Node Support (Planned)
+### Phase 20: Docker Swarm & Multi-Node Support ✅
 
-- [ ] **Swarm Orchestration**
-  - [ ] Initialize/Join Swarm cluster UI
-  - [ ] Node management (List, Promote, Demote, Remove)
-  - [ ] Node health and resource monitoring
-- [ ] **Swarm Services**
-  - [ ] Support `docker stack deploy` equivalent via `bollard`
-  - [ ] Manage Swarm Services (Service mode: Replicated vs Global)
-  - [ ] Zero-downtime rolling updates support
-- [ ] **Advanced Networking**
-  - [ ] Multi-node Overlay networks
-  - [ ] Service Mesh / Ingress integration
+- [x] **Swarm Orchestration**
+  - [x] Initialize/Join Swarm cluster UI
+  - [x] Node management (List, Promote, Demote, Remove)
+  - [x] Node resource overview
+- [x] **Swarm Services**
+  - [x] Support Swarm Mode for stacks
+  - [x] Scale Swarm Services (replicas)
+  - [x] Node-level health and availability management
+- [x] **Advanced Networking**
+  - [x] Overlay network management
+  - [x] Multi-node ingress with cloudflared
 
 ### Phase 21: Advanced Domain Management ✅
 
@@ -213,6 +213,31 @@
 
   > [!NOTE]
   > **Ingress Architecture**: Domains via DNS/cPanel will route through **Caddy** (Public IP 80/443), while Tunnel-based domains will route directly via the **cloudflared** container to app containers (Private/No Host Ports).
+
+### Phase 22: Swarm Scaling & Monitoring Mastery ✅
+
+- [x] **Service Scaling**
+  - [x] Dynamically update service replica count
+  - [x] Cluster-wide instance balancing
+- [x] **High-Fidelity Monitoring**
+  - [x] Persistent SQLite metrics for nodes and containers
+  - [x] Interactive time-series charts (Chart.js)
+  - [x] Multi-range metrics history (1h, 6h, 24h)
+- [x] **Node Access**
+  - [x] Native host shell access (WebSockets + portable-pty)
+  - [x] Xterm.js integration for all cluster nodes
+
+### Phase 23: Smart Ingress & Network Visualization (Planned)
+
+- [ ] **Network Discovery**
+  - [ ] Network Topology Discovery API
+  - [ ] Automated DNS record sync for _all_ ingress types
+- [ ] **Smart Routing**
+  - [ ] Caddy Dynamic Configuration with multi-node sync
+  - [ ] Automated health-based traffic steering
+- [ ] **Visualizer**
+  - [ ] Network Topology Visualization Diagram
+  - [ ] Real-time cluster traffic heatmap
 
 ---
 

@@ -11,6 +11,9 @@ export class NodeListController {
   showInitDialog = $state(false);
   showJoinDialog = $state(false);
   showTokensDialog = $state(false);
+  showTerminal = $state(false);
+  selectedNodeId = $state<string | null>(null);
+  selectedNodeName = $state<string | null>(null);
 
   listenAddr = $state("0.0.0.0:2377");
   remoteAddr = $state("");
@@ -90,5 +93,11 @@ export class NodeListController {
     } else {
       toast.error("Failed to fetch Swarm tokens");
     }
+  }
+
+  openTerminal(id: string, name: string) {
+    this.selectedNodeId = id;
+    this.selectedNodeName = name;
+    this.showTerminal = true;
   }
 }

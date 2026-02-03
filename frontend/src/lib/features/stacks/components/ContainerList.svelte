@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button } from '$lib/components/ui/button';
   import * as Card from '$lib/components/ui/card';
-  import { Container as ContainerIcon, RefreshCw, Terminal, Monitor, Hammer } from '@lucide/svelte';
+  import { Container as ContainerIcon, RefreshCw, Terminal, Monitor, Hammer, Layers } from '@lucide/svelte';
   import { activeTeam } from '$lib/stores';
   import type { StackController } from '../stack-controller.svelte';
   import TerminalExec from '$lib/components/TerminalExec.svelte';
@@ -85,6 +85,15 @@
                 disabled={ctrl.actionLoading}
               >
                 <RefreshCw class="h-4 w-4 {ctrl.actionLoading ? 'animate-spin' : ''}" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onclick={() => ctrl.requestScale(container.labels?.['labuh.service.name'] || container.names[0]?.replace(/^\//, ''))}
+                title="Scale Service"
+                disabled={ctrl.actionLoading}
+              >
+                <Layers class="h-4 w-4" />
               </Button>
             {/if}
           </div>

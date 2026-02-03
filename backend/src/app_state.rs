@@ -3,11 +3,13 @@ use std::sync::Arc;
 
 use crate::config::Config;
 use crate::domain::runtime::RuntimePort;
+use crate::domain::system::SystemProvider;
 use crate::infrastructure::caddy::client::CaddyClient;
 use crate::infrastructure::tunnel::manager::TunnelManager;
 use crate::usecase::auth::AuthUsecase;
 use crate::usecase::deployment_log::DeploymentLogUsecase;
 use crate::usecase::environment::EnvironmentUsecase;
+use crate::usecase::metrics::MetricsUsecase;
 use crate::usecase::node::NodeUsecase;
 use crate::usecase::registry::RegistryUsecase;
 use crate::usecase::resource::ResourceUsecase;
@@ -24,6 +26,7 @@ pub struct AppState {
     // Infrastructure
     pub runtime: Arc<dyn RuntimePort>,
     pub caddy_client: Arc<CaddyClient>,
+    pub system_provider: Arc<dyn SystemProvider>,
     pub tunnel_manager: Option<Arc<TunnelManager>>,
 
     // Usecases
@@ -41,6 +44,7 @@ pub struct AppState {
     pub log_usecase: Option<Arc<DeploymentLogUsecase>>,
     pub domain_usecase: Option<Arc<crate::usecase::domain::DomainUsecase>>,
     pub dns_usecase: Option<Arc<crate::usecase::dns::DnsUsecase>>,
+    pub metrics_usecase: Option<Arc<MetricsUsecase>>,
 }
 
 impl AppState {
@@ -69,13 +73,16 @@ impl AppState {
 
         let system_provider =
             Arc::new(crate::infrastructure::linux_system::LinuxSystemProvider::new());
-        let system_usecase = Arc::new(crate::usecase::system::SystemUsecase::new(system_provider));
+        let system_usecase = Arc::new(crate::usecase::system::SystemUsecase::new(
+            system_provider.clone(),
+        ));
 
         let mut app_state = Self {
             _config: config.clone(),
             _pool: pool,
             runtime: runtime.clone(),
             caddy_client,
+            system_provider: system_provider.clone(),
             tunnel_manager: None,
             auth_usecase,
             system_usecase,
@@ -89,6 +96,7 @@ impl AppState {
             log_usecase: None,
             domain_usecase: None,
             dns_usecase: None,
+            metrics_usecase: None,
         };
 
         app_state.init_full_stack().await?;
@@ -154,14 +162,21 @@ impl AppState {
         self.resource_usecase = Some(resource_uc);
 
         // Background Task: Metrics Collector
+        let metrics_repo = Arc::new(
+            crate::infrastructure::sqlite::metrics::SqliteMetricsRepository::new(pool.clone()),
+        );
         let metrics_collector = Arc::new(crate::usecase::metrics_collector::MetricsCollector::new(
             stack_repo.clone(),
             resource_repo.clone(),
+            metrics_repo.clone(),
             runtime.clone(),
+            self.system_provider.clone(),
         ));
         tokio::spawn(async move {
             metrics_collector.start().await;
         });
+
+        self.metrics_usecase = Some(Arc::new(MetricsUsecase::new(metrics_repo)));
 
         let stack_uc = Arc::new(StackUsecase::new(
             stack_repo.clone(),

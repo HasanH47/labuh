@@ -326,6 +326,24 @@ export interface ResourceMetric {
   timestamp: string;
 }
 
+export interface HistoricalNodeMetrics {
+  cpu_percent: number;
+  memory_usage: number;
+  memory_total: number;
+  disk_usage: number;
+  disk_total: number;
+  timestamp: string;
+}
+
+export interface HistoricalContainerMetrics {
+  container_id: string;
+  stack_id: string;
+  cpu_percent: number;
+  memory_usage: number;
+  memory_limit: number;
+  timestamp: string;
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -525,6 +543,16 @@ export const api = {
       return fetchApi<{ status: string }>(url, {
         method: "POST",
       });
+    },
+
+    scale: async (id: string, serviceName: string, replicas: number) => {
+      return fetchApi<{ status: string }>(
+        `/stacks/${id}/services/${serviceName}/scale`,
+        {
+          method: "POST",
+          body: JSON.stringify({ replicas }),
+        },
+      );
     },
 
     build: async (id: string, serviceName?: string) => {
@@ -902,6 +930,26 @@ export const api = {
     getSwarmTokens: async () => {
       return fetchApi<{ manager: string; worker: string }>(
         "/nodes/swarm/tokens",
+      );
+    },
+  },
+
+  metrics: {
+    getNodeMetrics: async (lastHours?: number) => {
+      const query = lastHours ? `?last_hours=${lastHours}` : "";
+      return fetchApi<HistoricalNodeMetrics[]>(
+        `/metrics/nodes/metrics${query}`,
+      );
+    },
+
+    getContainerMetrics: async (
+      stackId: string,
+      containerId: string,
+      lastHours?: number,
+    ) => {
+      const query = lastHours ? `?last_hours=${lastHours}` : "";
+      return fetchApi<HistoricalContainerMetrics[]>(
+        `/metrics/stacks/${stackId}/containers/${containerId}/metrics${query}`,
       );
     },
   },

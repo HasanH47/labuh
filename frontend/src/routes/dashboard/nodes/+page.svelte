@@ -5,6 +5,7 @@
   import { Button } from '$lib/components/ui/button';
   import { RefreshCw, ShieldAlert, Ship, Plus } from '@lucide/svelte';
   import SwarmActionDialogs from '$lib/features/nodes/components/SwarmActionDialogs.svelte';
+  import NodeTerminal from '$lib/features/nodes/components/NodeTerminal.svelte';
 
   const ctrl = new NodeListController();
 
@@ -81,10 +82,18 @@
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each ctrl.nodes as node}
-        <NodeCard {node} />
+        <NodeCard {node} {ctrl} />
       {/each}
     </div>
   {/if}
 </div>
 
 <SwarmActionDialogs {ctrl} />
+
+{#if ctrl.showTerminal && ctrl.selectedNodeId}
+  <NodeTerminal
+    nodeId={ctrl.selectedNodeId}
+    nodeName={ctrl.selectedNodeName}
+    onClose={() => ctrl.showTerminal = false}
+  />
+{/if}

@@ -42,6 +42,9 @@ pub trait RuntimePort: Send + Sync {
     async fn list_nodes(&self) -> Result<Vec<SwarmNode>>;
     async fn inspect_node(&self, id: &str) -> Result<SwarmNode>;
     async fn get_swarm_tokens(&self) -> Result<SwarmTokens>;
+
+    // Swarm Service Management
+    async fn update_service_scale(&self, service_name: &str, replicas: u64) -> Result<()>;
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -105,8 +108,8 @@ pub struct ContainerInfo {
 pub struct SwarmNode {
     pub id: String,
     pub hostname: String,
-    pub role: String, // "manager", "worker"
-    pub status: String, // "ready", "down", etc.
+    pub role: String,         // "manager", "worker"
+    pub status: String,       // "ready", "down", etc.
     pub availability: String, // "active", "pause", "drain"
     pub addr: String,
     pub version: String,

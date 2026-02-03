@@ -50,6 +50,9 @@ export class StackController {
   showDeleteEnvConfirm = $state(false);
   envVarToDelete = $state<{ key: string; container: string } | null>(null);
   showRegenerateWebhookConfirm = $state(false);
+  showScaleConfirm = $state(false);
+  scaleServiceTarget = $state<string | null>(null);
+  scaleReplicas = $state(1);
   isCreating = $state(false); // For async stack creation UX
 
   constructor(id: string) {
@@ -443,6 +446,44 @@ export class StackController {
     const result = await api.stacks.regenerateWebhookToken(this.id);
     if (result.data && this.stack) {
       this.stack.webhook_token = result.data.token;
+    }
+  }
+
+  requestScale(serviceName: string) {
+    this.scaleServiceTarget = serviceName;
+    // Find current replicas if possible, or default to 1
+    const parts = serviceName.split("_");
+    const container = this.containers.find(
+      (c) =>
+        c.labels?.["com.docker.swarm.service.name"] ===
+        `${this.stack?.name}_${serviceName}`,
+    );
+    this.scaleReplicas = 1; // Default
+    this.showScaleConfirm = true;
+  }
+
+  async confirmScale(replicas: number) {
+    if (!this.scaleServiceTarget) return;
+    this.showScaleConfirm = false;
+    this.actionLoading = true;
+    try {
+      const result = await api.stacks.scale(
+        this.id,
+        this.scaleServiceTarget,
+        replicas,
+      );
+      if (result.error) {
+        toast.error(result.message || result.error);
+      } else {
+        toast.success(`Scaling ${this.scaleServiceTarget} to ${replicas}...`);
+        // Swarm updates are async, so we'll just reload containers after a short delay
+        setTimeout(() => this.loadContainers(), 2000);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to scale service");
+    } finally {
+      this.actionLoading = false;
+      this.scaleServiceTarget = null;
     }
   }
 

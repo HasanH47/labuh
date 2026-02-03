@@ -217,6 +217,23 @@ async fn redeploy_service(
     Ok(Json(serde_json::json!({ "status": "redeployed" })))
 }
 
+#[derive(serde::Deserialize)]
+struct ScaleServiceRequest {
+    replicas: u64,
+}
+
+async fn scale_service(
+    State(usecase): State<Arc<StackUsecase>>,
+    Extension(current_user): Extension<CurrentUser>,
+    Path((stack_id, service_name)): Path<(String, String)>,
+    Json(request): Json<ScaleServiceRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let _: () = usecase
+        .scale_service(&stack_id, &service_name, request.replicas, &current_user.id)
+        .await?;
+    Ok(Json(serde_json::json!({ "status": "scaled" })))
+}
+
 async fn build_service(
     State(usecase): State<Arc<StackUsecase>>,
     Extension(current_user): Extension<CurrentUser>,
@@ -343,6 +360,7 @@ pub fn stack_routes(usecase: Arc<StackUsecase>) -> Router {
             post(redeploy_service),
         )
         .route("/{id}/services/{service_name}/build", post(build_service))
+        .route("/{id}/services/{service_name}/scale", post(scale_service))
         .route("/{id}/compose", axum::routing::put(update_stack_compose))
         .route("/{id}/webhook/regenerate", post(regenerate_webhook_token))
         .route(

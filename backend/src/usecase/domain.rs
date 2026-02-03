@@ -110,12 +110,7 @@ impl DomainUsecase {
                 .await?;
             Some(
                 provider_impl
-                    .create_record(
-                        &request.domain,
-                        &record_type,
-                        &content,
-                        request.proxied,
-                    )
+                    .create_record(&request.domain, &record_type, &content, request.proxied)
                     .await?,
             )
         } else {
@@ -174,7 +169,11 @@ impl DomainUsecase {
                     .find_by_id_internal(&request.stack_id)
                     .await?;
 
-                if let Ok(cf) = self.dns_usecase.get_cloudflare_provider(&stack.team_id).await {
+                if let Ok(cf) = self
+                    .dns_usecase
+                    .get_cloudflare_provider(&stack.team_id)
+                    .await
+                {
                     if let Some(account_id) = cf.get_account_id() {
                         if let Ok(mut config) =
                             cf.get_tunnel_configuration(&account_id, tunnel_id).await
@@ -266,7 +265,11 @@ impl DomainUsecase {
         if matches!(domain_record.r#type, DomainType::Tunnel) {
             if let Some(tunnel_id) = &domain_record.tunnel_id {
                 let stack = self.stack_repo.find_by_id_internal(stack_id).await?;
-                if let Ok(cf) = self.dns_usecase.get_cloudflare_provider(&stack.team_id).await {
+                if let Ok(cf) = self
+                    .dns_usecase
+                    .get_cloudflare_provider(&stack.team_id)
+                    .await
+                {
                     if let Some(account_id) = cf.get_account_id() {
                         if let Ok(mut config) =
                             cf.get_tunnel_configuration(&account_id, tunnel_id).await

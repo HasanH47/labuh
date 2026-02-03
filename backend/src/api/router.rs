@@ -85,6 +85,7 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
         Some(log_uc),
         Some(_domain_uc),
         Some(_dns_uc),
+        Some(metrics_uc),
     ) = (
         &state.stack_usecase,
         &state.team_usecase,
@@ -95,6 +96,7 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
         &state.log_usecase,
         &state.domain_usecase,
         &state.dns_usecase,
+        &state.metrics_usecase,
     ) {
         routes = routes
             .nest("/teams", team_routes(team_uc.clone()))
@@ -117,6 +119,11 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
             )
             .nest("/templates", template_routes(template_uc.clone()))
             .nest("/nodes", node_routes(state.node_usecase.clone()))
+            .nest("/metrics", metrics_routes(metrics_uc.clone()))
+            .route(
+                "/nodes/terminal",
+                axum::routing::get(crate::api::ws::terminal::terminal_handler),
+            )
             .merge(dns_routes(state.clone()));
     }
 

@@ -5,6 +5,12 @@
   import type { StackController } from '../stack-controller.svelte';
 
   let { ctrl = $bindable() } = $props<{ ctrl: StackController }>();
+
+  $effect(() => {
+    if (ctrl.selectedRange) {
+      ctrl.loadMetrics();
+    }
+  });
 </script>
 
 <Card.Root>
