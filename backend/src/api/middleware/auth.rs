@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     extract::{Request, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     middleware::Next,
     response::Response,
-    Json,
 };
 use serde::Serialize;
 use std::sync::Arc;

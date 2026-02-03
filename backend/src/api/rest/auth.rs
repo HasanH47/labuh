@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Extension, State},
     routing::{get, post},
-    Json, Router,
 };
 use std::sync::Arc;
 

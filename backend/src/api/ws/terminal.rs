@@ -1,13 +1,13 @@
 use crate::api::middleware::auth::CurrentUser;
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Extension,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
 };
 use futures::{SinkExt, StreamExt};
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::io::{Read, Write};
 use tokio::sync::mpsc;
 

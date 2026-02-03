@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use bollard::Docker;
 use bollard::container::LogOutput;
 use bollard::models::{
     EndpointSettings, LocalNodeState, NetworkConnectRequest, NetworkCreateRequest,
@@ -10,7 +11,6 @@ use bollard::query_parameters::{
     RemoveImageOptions, StartContainerOptions, StatsOptions, StopContainerOptions,
     UpdateServiceOptions,
 };
-use bollard::Docker;
 use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -1,5 +1,5 @@
-use crate::domain::models::{Template, TemplateEnv};
 use crate::domain::TemplateRepository;
+use crate::domain::models::{Template, TemplateEnv};
 use crate::error::Result;
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};

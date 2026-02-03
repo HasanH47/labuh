@@ -71,10 +71,10 @@ impl DomainUsecase {
         }
 
         // 0. Ensure Tunnel if requested
-        if let Some(token) = &request.tunnel_token {
-            if let Some(tm) = &self.tunnel_manager {
-                tm.ensure_tunnel(token).await?;
-            }
+        if let Some(token) = &request.tunnel_token
+            && let Some(tm) = &self.tunnel_manager
+        {
+            tm.ensure_tunnel(token).await?;
         }
 
         // 1. Resolve tunnel ID if it's a Tunnel type domain
@@ -223,18 +223,16 @@ impl DomainUsecase {
         domain_record: &Domain,
         dns_record_id: Option<&str>,
     ) {
-        if let Some(record_id) = dns_record_id {
-            if let Ok(stack) = self.stack_repo.find_by_id_internal(stack_id).await {
-                if let Ok(provider_impl) = self
-                    .dns_usecase
-                    .get_provider(&stack.team_id, domain_record.provider.clone())
-                    .await
-                {
-                    let _ = provider_impl
-                        .delete_record(&domain_record.domain, record_id)
-                        .await;
-                }
-            }
+        if let Some(record_id) = dns_record_id
+            && let Ok(stack) = self.stack_repo.find_by_id_internal(stack_id).await
+            && let Ok(provider_impl) = self
+                .dns_usecase
+                .get_provider(&stack.team_id, domain_record.provider.clone())
+                .await
+        {
+            let _ = provider_impl
+                .delete_record(&domain_record.domain, record_id)
+                .await;
         }
     }
 
@@ -264,12 +262,12 @@ impl DomainUsecase {
                     .await;
 
                 // Also remove Tunnel Ingress if applicable
-                if matches!(domain_record.r#type, DomainType::Tunnel) {
-                    if let Some(tunnel_id) = &domain_record.tunnel_id {
-                        let _ = provider_impl
-                            .remove_tunnel_ingress(tunnel_id, &domain_record.domain)
-                            .await;
-                    }
+                if matches!(domain_record.r#type, DomainType::Tunnel)
+                    && let Some(tunnel_id) = &domain_record.tunnel_id
+                {
+                    let _ = provider_impl
+                        .remove_tunnel_ingress(tunnel_id, &domain_record.domain)
+                        .await;
                 }
             }
         }
@@ -286,8 +284,8 @@ impl DomainUsecase {
     }
 
     pub async fn verify_domain(&self, domain: &str) -> Result<DnsVerificationResult> {
-        use hickory_resolver::config::{ResolverConfig, ResolverOpts};
         use hickory_resolver::TokioAsyncResolver;
+        use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 
         let resolver =
             TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
@@ -358,74 +356,65 @@ impl DomainUsecase {
             }
 
             // 2. Sync DNS (Create if missing)
-            if !matches!(domain.provider, DomainProvider::Custom) {
-                if let Ok(stack) = self.stack_repo.find_by_id_internal(&domain.stack_id).await {
-                    if let Ok(provider_impl) = self
-                        .dns_usecase
-                        .get_provider(&stack.team_id, domain.provider.clone())
-                        .await
-                    {
-                        // Check if record exists in remote (simplified: only if we don't have dns_record_id or if we want to be thorough)
-                        // For simplicity and performance, we'll only recreate if dns_record_id is missing
-                        // or if we want to "force" sync we could check remote records.
-                        // Let's at least ensure we have a record ID.
-                        if domain.dns_record_id.is_none() {
-                            // Determine record type and content
-                            let (record_type, content) = match domain.r#type {
-                                DomainType::Caddy => {
-                                    let ip = std::env::var("LABUH_PUBLIC_IP")
-                                        .unwrap_or_else(|_| "127.0.0.1".to_string());
-                                    ("A".to_string(), ip)
-                                }
-                                DomainType::Tunnel => {
-                                    if let Some(tunnel_id) = domain.tunnel_id.as_deref() {
-                                        let target = format!("{}.cfargotunnel.com", tunnel_id);
-                                        ("CNAME".to_string(), target)
-                                    } else {
-                                        // Skip if tunnel_id is missing during sync
-                                        continue;
-                                    }
-                                }
-                            };
-
-                            if let Ok(new_id) = provider_impl
-                                .create_record(
-                                    &domain.domain,
-                                    &record_type,
-                                    &content,
-                                    domain.proxied,
-                                )
-                                .await
-                            {
-                                let _ = self
-                                    .domain_repo
-                                    .update_dns_record_id(&domain.id, &new_id)
-                                    .await;
-                            }
+            // 2. Sync DNS (Create if missing)
+            if !matches!(domain.provider, DomainProvider::Custom)
+                && let Ok(stack) = self.stack_repo.find_by_id_internal(&domain.stack_id).await
+                && let Ok(provider_impl) = self
+                    .dns_usecase
+                    .get_provider(&stack.team_id, domain.provider.clone())
+                    .await
+                && domain.dns_record_id.is_none()
+            {
+                // Determine record type and content
+                let (record_type, content) = match domain.r#type {
+                    DomainType::Caddy => {
+                        let ip = std::env::var("LABUH_PUBLIC_IP")
+                            .unwrap_or_else(|_| "127.0.0.1".to_string());
+                        ("A".to_string(), ip)
+                    }
+                    DomainType::Tunnel => {
+                        if let Some(tunnel_id) = domain.tunnel_id.as_deref() {
+                            let target = format!("{}.cfargotunnel.com", tunnel_id);
+                            ("CNAME".to_string(), target)
+                        } else {
+                            // Skip if tunnel_id is missing during sync
+                            continue;
                         }
                     }
+                };
+
+                if let Ok(new_id) = provider_impl
+                    .create_record(
+                        &domain.domain,
+                        &record_type,
+                        &content,
+                        domain.proxied,
+                    )
+                    .await
+                {
+                    let _ = self
+                        .domain_repo
+                        .update_dns_record_id(&domain.id, &new_id)
+                        .await;
                 }
             }
 
             // 3. Sync Tunnel Ingress
-            if matches!(domain.r#type, DomainType::Tunnel) {
-                if let Some(tunnel_id) = &domain.tunnel_id {
-                    if let Ok(stack) = self.stack_repo.find_by_id_internal(&domain.stack_id).await {
-                        if let Ok(provider_impl) = self
-                            .dns_usecase
-                            .get_provider(&stack.team_id, domain.provider.clone())
-                            .await
-                        {
-                            let service_url = format!(
-                                "http://{}:{}",
-                                domain.container_name, domain.container_port
-                            );
-                            let _ = provider_impl
-                                .setup_tunnel_ingress(tunnel_id, &domain.domain, &service_url)
-                                .await;
-                        }
-                    }
-                }
+            if matches!(domain.r#type, DomainType::Tunnel)
+                && let Some(tunnel_id) = &domain.tunnel_id
+                && let Ok(stack) = self.stack_repo.find_by_id_internal(&domain.stack_id).await
+                && let Ok(provider_impl) = self
+                    .dns_usecase
+                    .get_provider(&stack.team_id, domain.provider.clone())
+                    .await
+            {
+                let service_url = format!(
+                    "http://{}:{}",
+                    domain.container_name, domain.container_port
+                );
+                let _ = provider_impl
+                    .setup_tunnel_ingress(tunnel_id, &domain.domain, &service_url)
+                    .await;
             }
         }
         Ok(())

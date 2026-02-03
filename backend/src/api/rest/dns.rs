@@ -1,14 +1,14 @@
 use axum::{
+    Json, Router,
     extract::{Extension, Path, State},
     routing::{delete, get, post},
-    Json, Router,
 };
 use std::sync::Arc;
 
 use crate::api::middleware::auth::CurrentUser;
 use crate::app_state::AppState;
-use crate::domain::models::dns::{CreateDnsConfigRequest, DnsConfig};
 use crate::domain::models::TeamRole;
+use crate::domain::models::dns::{CreateDnsConfigRequest, DnsConfig};
 use crate::error::{AppError, Result};
 
 async fn list_dns_configs(
@@ -102,7 +102,7 @@ async fn get_available_domains(
             return Err(AppError::BadRequest(format!(
                 "Unsupported provider: {}",
                 provider
-            )))
+            )));
         }
     };
 
@@ -137,7 +137,7 @@ async fn get_remote_records(
             return Err(AppError::BadRequest(format!(
                 "Unsupported provider: {}",
                 provider
-            )))
+            )));
         }
     };
 

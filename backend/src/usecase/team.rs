@@ -2,8 +2,8 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::models::{Team, TeamMember, TeamResponse, TeamRole};
 use crate::domain::TeamRepository;
+use crate::domain::models::{Team, TeamMember, TeamResponse, TeamRole};
 use crate::error::{AppError, Result};
 
 pub struct TeamUsecase {

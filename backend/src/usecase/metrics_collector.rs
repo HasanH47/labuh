@@ -1,6 +1,6 @@
 use chrono::Utc;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use uuid::Uuid;
 
 use crate::domain::metrics_repository::{

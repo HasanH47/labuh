@@ -1,6 +1,6 @@
 use chrono::Utc;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use std::path::Path;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -261,10 +261,11 @@ impl StackUsecase {
         let parsed = parse_compose(compose_content)?;
 
         for service in &parsed.services {
-            if let Some(target) = service_name {
-                if service.name != target && format!("{}-{}", stack.name, service.name) != target {
-                    continue;
-                }
+            if let Some(target) = service_name
+                && service.name != target
+                && format!("{}-{}", stack.name, service.name) != target
+            {
+                continue;
             }
             let mut config = service_to_container_request(service, &stack.id, &stack.name);
 

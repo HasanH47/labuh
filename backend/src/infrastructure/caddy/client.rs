@@ -273,17 +273,15 @@ impl CaddyClient {
 
             let mut index_to_remove = None;
             for (index, route) in routes.iter().enumerate() {
-                if let Some(matches) = route.get("match") {
-                    if let Some(hosts) = matches.get(0).and_then(|m| m.get("host")) {
-                        if hosts
-                            .as_array()
-                            .map(|arr| arr.iter().any(|h| h.as_str() == Some(domain)))
-                            .unwrap_or(false)
-                        {
-                            index_to_remove = Some(index);
-                            break;
-                        }
-                    }
+                if let Some(matches) = route.get("match")
+                    && let Some(hosts) = matches.get(0).and_then(|m| m.get("host"))
+                    && hosts
+                        .as_array()
+                        .map(|arr| arr.iter().any(|h| h.as_str() == Some(domain)))
+                        .unwrap_or(false)
+                {
+                    index_to_remove = Some(index);
+                    break;
                 }
             }
 

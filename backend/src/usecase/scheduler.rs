@@ -69,22 +69,22 @@ impl AutomationScheduler {
             let last_minute = now - Duration::from_secs(61);
             let next_occurrence = schedule.after(&last_minute).next();
 
-            if let Some(occ) = next_occurrence {
-                if occ <= now {
-                    tracing::info!("Triggering scheduled redeploy for stack {}", stack.id);
-                    let stack_id = stack.id.clone();
-                    let usecase = self.stack_usecase.clone();
+            if let Some(occ) = next_occurrence
+                && occ <= now
+            {
+                tracing::info!("Triggering scheduled redeploy for stack {}", stack.id);
+                let stack_id = stack.id.clone();
+                let usecase = self.stack_usecase.clone();
 
-                    tokio::spawn(async move {
-                        if let Err(e) = usecase.redeploy_stack(&stack_id).await {
-                            tracing::error!(
-                                "Scheduled redeploy failed for stack {}: {}",
-                                stack_id,
-                                e
-                            );
-                        }
-                    });
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = usecase.redeploy_stack(&stack_id).await {
+                        tracing::error!(
+                            "Scheduled redeploy failed for stack {}: {}",
+                            stack_id,
+                            e
+                        );
+                    }
+                });
             }
         }
 

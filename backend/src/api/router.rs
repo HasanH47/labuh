@@ -1,4 +1,4 @@
-use axum::{middleware as axum_middleware, Router};
+use axum::{Router, middleware as axum_middleware};
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};

@@ -2,8 +2,8 @@ use crate::domain::metrics_repository::{HistoricalContainerMetrics, HistoricalNo
 use crate::error::Result;
 use crate::usecase::metrics::MetricsUsecase;
 use axum::{
-    extract::{Path, Query, State},
     Json, Router,
+    extract::{Path, Query, State},
 };
 use std::sync::Arc;
 

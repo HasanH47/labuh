@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     extract::{Extension, Path, State},
     routing::{delete, get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use std::sync::Arc;
