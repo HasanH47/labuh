@@ -10,7 +10,6 @@ use crate::api::middleware::auth::CurrentUser;
 use crate::domain::runtime::{ContainerInfo, ContainerStats};
 use crate::error::Result;
 use crate::usecase::stack::StackUsecase;
-use tokio::io::AsyncWriteExt;
 
 #[derive(Deserialize)]
 pub struct ListContainersQuery {
@@ -119,111 +118,6 @@ async fn get_container_stats(
     Ok(Json(stats))
 }
 
-async fn container_exec(
-    ws: axum::extract::ws::WebSocketUpgrade,
-    State(stack_usecase): State<Arc<StackUsecase>>,
-    Extension(user): Extension<CurrentUser>,
-    Path(id): Path<String>,
-) -> Result<axum::response::Response> {
-    // Verify ownership
-    let _ = stack_usecase
-        .verify_container_ownership(&id, &user.id)
-        .await?;
-
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, stack_usecase, id)))
-}
-
-async fn handle_socket(
-    mut socket: axum::extract::ws::WebSocket,
-    stack_usecase: Arc<StackUsecase>,
-    container_id: String,
-) {
-    use bollard::container::LogOutput;
-    use bollard::exec::StartExecResults;
-    use futures::StreamExt;
-
-    // 1. Create exec instance (shell)
-    let exec = match stack_usecase
-        .runtime()
-        .exec_command(&container_id, vec!["/bin/sh".to_string()])
-        .await
-    {
-        Ok(e) => e,
-        Err(e) => {
-            let _ = socket
-                .send(axum::extract::ws::Message::Text(
-                    format!("Error: {}", e).into(),
-                ))
-                .await;
-            return;
-        }
-    };
-
-    // 2. Connect to the exec instance
-    let attached = match stack_usecase.runtime().connect_exec(&exec.id).await {
-        Ok(StartExecResults::Attached { output, input }) => (output, input),
-        Ok(StartExecResults::Detached) => {
-            let _ = socket
-                .send(axum::extract::ws::Message::Text(
-                    "Error: Exec started in detached mode".to_string().into(),
-                ))
-                .await;
-            return;
-        }
-        Err(e) => {
-            let _ = socket
-                .send(axum::extract::ws::Message::Text(
-                    format!("Error: {}", e).into(),
-                ))
-                .await;
-            return;
-        }
-    };
-
-    let (docker_rx, mut docker_tx) = attached;
-    let mut docker_rx = docker_rx;
-
-    // 3. Bridge the WebSocket and Docker exec stream
-    loop {
-        tokio::select! {
-            // From Docker to WebSocket
-            Some(Ok(output)) = docker_rx.next() => {
-                match output {
-                    LogOutput::StdOut { message } | LogOutput::StdErr { message } | LogOutput::Console { message } => {
-                        if socket.send(axum::extract::ws::Message::Binary(message)).await.is_err() {
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            // From WebSocket to Docker
-            Some(res) = socket.next() => {
-                let msg = match res {
-                    Ok(m) => m,
-                    Err(_) => break,
-                };
-
-                match msg {
-                    axum::extract::ws::Message::Binary(bin) => {
-                        if AsyncWriteExt::write_all(&mut docker_tx, &bin).await.is_err() {
-                            break;
-                        }
-                    }
-                    axum::extract::ws::Message::Text(txt) => {
-                        if AsyncWriteExt::write_all(&mut docker_tx, txt.as_bytes()).await.is_err() {
-                            break;
-                        }
-                    }
-                    axum::extract::ws::Message::Close(_) => break,
-                    _ => {}
-                }
-            }
-            else => break,
-        }
-    }
-}
-
 pub fn container_routes(stack_usecase: Arc<StackUsecase>) -> Router {
     Router::new()
         .route("/", get(list_containers))
@@ -233,6 +127,5 @@ pub fn container_routes(stack_usecase: Arc<StackUsecase>) -> Router {
         .route("/{id}", delete(remove_container))
         .route("/{id}/logs", get(get_container_logs))
         .route("/{id}/stats", get(get_container_stats))
-        .route("/{id}/exec", get(container_exec))
         .with_state(stack_usecase)
 }

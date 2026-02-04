@@ -1,7 +1,8 @@
 use crate::api::middleware::auth::CurrentUser;
+use crate::app_state::AppState;
 use axum::{
     extract::{
-        Extension,
+        Extension, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
@@ -9,13 +10,44 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::io::{Read, Write};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
-pub async fn terminal_handler(
+#[derive(serde::Deserialize)]
+pub struct TerminalQuery {
+    pub node_id: Option<String>,
+}
+
+pub async fn node_terminal_handler(
     ws: WebSocketUpgrade,
+    Query(query): Query<TerminalQuery>,
     Extension(current_user): Extension<CurrentUser>,
+    State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| terminal_session(socket, current_user))
+    ws.on_upgrade(move |socket| node_terminal_session(socket, query.node_id, current_user, state))
+}
+
+async fn node_terminal_session(
+    socket: WebSocket,
+    node_id: Option<String>,
+    current_user: CurrentUser,
+    _state: Arc<AppState>,
+) {
+    if let Some(ref nid) = node_id {
+        tracing::info!(
+            "User {} connecting to terminal for node {}",
+            current_user.email,
+            nid
+        );
+    } else {
+        tracing::info!(
+            "User {} connected to local host terminal",
+            current_user.email
+        );
+    }
+
+    // TODO: if node_id is NOT local manager, use SSH or proxy container
+    terminal_session(socket, current_user).await;
 }
 
 async fn terminal_session(socket: WebSocket, current_user: CurrentUser) {
