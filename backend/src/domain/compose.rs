@@ -29,11 +29,37 @@ pub struct ComposeService {
     #[serde(default)]
     pub depends_on: Vec<String>,
     #[serde(default)]
-    pub _networks: Vec<String>,
+    pub networks: Vec<String>,
     pub _container_name: Option<String>,
     pub _restart: Option<String>,
     #[serde(default)]
     pub labels: HashMap<String, String>,
+    pub deploy: Option<ComposeDeploy>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComposeDeploy {
+    pub replicas: Option<u32>,
+    pub resources: Option<ComposeResources>,
+    #[serde(default)]
+    pub placement: ComposePlacement,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ComposePlacement {
+    #[serde(default)]
+    pub constraints: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComposeResources {
+    pub limits: Option<ComposeLimits>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComposeLimits {
+    pub cpus: Option<String>,
+    pub memory: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +88,7 @@ pub struct ComposeNetwork {}
 #[derive(Debug)]
 pub struct ParsedCompose {
     pub services: Vec<ParsedService>,
-    pub _networks: Vec<String>,
+    pub networks: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +100,22 @@ pub struct ParsedService {
     pub ports: HashMap<String, String>,
     pub volumes: HashMap<String, String>,
     pub depends_on: Vec<String>,
+    pub networks: Vec<String>,
     pub build: Option<ParsedBuild>,
+    pub cpu_limit: Option<f64>,
+    pub memory_limit: Option<i64>,
+    pub deploy: Option<ParsedDeploy>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedDeploy {
+    pub replicas: Option<u32>,
+    pub placement: ParsedPlacement,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedPlacement {
+    pub constraints: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -231,6 +272,26 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
             }
         }
 
+        // Parse limits
+        let mut cpu_limit = None;
+        let mut memory_limit = None;
+        let mut replicas = None;
+        let mut constraints = Vec::new();
+
+        if let Some(deploy) = &service.deploy {
+            replicas = deploy.replicas;
+            constraints = deploy.placement.constraints.clone();
+
+            if let Some(limits) = deploy.resources.as_ref().and_then(|r| r.limits.as_ref()) {
+                if let Some(cpus) = &limits.cpus {
+                    cpu_limit = cpus.parse::<f64>().ok();
+                }
+                if let Some(memory) = &limits.memory {
+                    memory_limit = parse_memory(memory);
+                }
+            }
+        }
+
         services.push(ParsedService {
             name,
             image,
@@ -238,8 +299,15 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
             ports,
             volumes,
             depends_on: service.depends_on,
+            networks: service.networks,
             labels: service.labels,
             build,
+            cpu_limit,
+            memory_limit,
+            deploy: Some(ParsedDeploy {
+                replicas,
+                placement: ParsedPlacement { constraints },
+            }),
         });
     }
 
@@ -254,12 +322,26 @@ pub fn parse_compose(yaml_content: &str) -> Result<ParsedCompose> {
         }
     });
 
-    let _networks: Vec<String> = compose.networks.keys().cloned().collect();
+    let networks: Vec<String> = compose.networks.keys().cloned().collect();
 
-    Ok(ParsedCompose {
-        services,
-        _networks,
-    })
+    Ok(ParsedCompose { services, networks })
+}
+
+fn parse_memory(memory: &str) -> Option<i64> {
+    let memory = memory.to_uppercase();
+    // Support formats like "256M", "1024", "1G"
+    let val_str: String = memory.chars().filter(|c| c.is_numeric()).collect();
+    let val = val_str.parse::<i64>().ok()?;
+
+    if memory.contains('G') {
+        Some(val * 1024 * 1024 * 1024)
+    } else if memory.contains('M') {
+        Some(val * 1024 * 1024)
+    } else if memory.contains('K') {
+        Some(val * 1024)
+    } else {
+        Some(val)
+    }
 }
 
 /// Convert parsed service to container creation request
@@ -310,8 +392,8 @@ pub fn service_to_container_request(
         ports,
         volumes,
         labels: Some(labels),
-        cpu_limit: None,
-        memory_limit: None,
+        cpu_limit: service.cpu_limit,
+        memory_limit: service.memory_limit,
         cmd: None,
         network_mode: Some("labuh-network".to_string()),
         extra_hosts: None,

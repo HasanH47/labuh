@@ -36,7 +36,7 @@
     let wsUrl = API_URL.replace(/^http/, 'ws');
 		const token = browser ? localStorage.getItem('token') : '';
 
-    ws = new WebSocket(`${wsUrl}/api/nodes/terminal?token=${token}`);
+    ws = new WebSocket(`${wsUrl}/api/nodes/terminal?token=${token}&node_id=${nodeId}`);
 
     ws.onopen = () => {
       // WebSocket connection established

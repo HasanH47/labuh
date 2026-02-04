@@ -45,7 +45,23 @@ pub trait RuntimePort: Send + Sync {
     async fn get_swarm_tokens(&self) -> Result<SwarmTokens>;
 
     // Swarm Service Management
+    async fn create_service(&self, config: ServiceConfig) -> Result<String>;
+    async fn remove_service(&self, id_or_name: &str) -> Result<()>;
     async fn update_service_scale(&self, service_name: &str, replicas: u64) -> Result<()>;
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ServiceConfig {
+    pub name: String,
+    pub image: String,
+    pub networks: Vec<String>,
+    pub env: Vec<String>,
+    pub replicas: u64,
+    pub labels: std::collections::HashMap<String, String>,
+    pub ports: Vec<String>,
+    pub cpu_limit: Option<f64>,
+    pub memory_limit: Option<i64>,
+    pub constraints: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -105,6 +121,7 @@ pub struct ContainerInfo {
     pub labels: std::collections::HashMap<String, String>,
     pub networks: std::collections::HashMap<String, EndpointInfo>,
     pub ports: Option<Vec<ContainerPort>>,
+    pub created: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

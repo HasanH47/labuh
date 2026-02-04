@@ -103,6 +103,15 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
             .nest("/registries", registry_routes(registry_uc.clone()))
             .nest("/containers", container_routes(stack_uc.clone()))
             .nest(
+                "/containers/{id}/exec",
+                Router::new()
+                    .route(
+                        "/",
+                        axum::routing::get(crate::api::ws::containers::container_exec_handler),
+                    )
+                    .with_state(state.clone()),
+            )
+            .nest(
                 "/images",
                 image_routes(state.runtime.clone(), registry_uc.clone()),
             )
@@ -121,9 +130,14 @@ fn create_protected_routes(state: Arc<AppState>) -> Router {
             .nest("/nodes", node_routes(state.node_usecase.clone()))
             .nest("/networks", network_routes(state.clone()))
             .nest("/metrics", metrics_routes(metrics_uc.clone()))
-            .route(
+            .nest(
                 "/nodes/terminal",
-                axum::routing::get(crate::api::ws::terminal::terminal_handler),
+                Router::new()
+                    .route(
+                        "/",
+                        axum::routing::get(crate::api::ws::terminal::node_terminal_handler),
+                    )
+                    .with_state(state.clone()),
             )
             .merge(dns_routes(state.clone()));
     }

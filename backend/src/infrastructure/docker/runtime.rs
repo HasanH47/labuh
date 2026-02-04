@@ -2,8 +2,10 @@ use async_trait::async_trait;
 use bollard::Docker;
 use bollard::container::LogOutput;
 use bollard::models::{
-    EndpointSettings, LocalNodeState, NetworkConnectRequest, NetworkCreateRequest,
-    SwarmInitRequest, SwarmJoinRequest,
+    EndpointPortConfig, EndpointSettings, EndpointSpec, Limit, LocalNodeState,
+    NetworkAttachmentConfig, NetworkConnectRequest, NetworkCreateRequest, ServiceSpec,
+    ServiceSpecMode, ServiceSpecModeReplicated, SwarmInitRequest, SwarmJoinRequest, TaskSpec,
+    TaskSpecContainerSpec, TaskSpecResources,
 };
 use bollard::query_parameters::{
     BuildImageOptions, CreateContainerOptions, CreateImageOptions, ListContainersOptions,
@@ -17,6 +19,7 @@ use std::sync::Arc;
 
 use crate::domain::runtime::{
     ContainerConfig, ContainerInfo, ContainerPort, EndpointInfo, NetworkInfo, RuntimePort,
+    ServiceConfig,
 };
 use crate::error::{AppError, Result};
 
@@ -278,6 +281,7 @@ impl RuntimePort for DockerRuntimeAdapter {
                     labels: c.labels.unwrap_or_default(),
                     networks,
                     ports,
+                    created: c.created.unwrap_or(0),
                 }
             })
             .collect())
@@ -368,6 +372,14 @@ impl RuntimePort for DockerRuntimeAdapter {
                 .unwrap_or_default(),
             networks,
             ports,
+            created: container
+                .created
+                .and_then(|c| {
+                    chrono::DateTime::parse_from_rfc3339(&c)
+                        .ok()
+                        .map(|dt| dt.timestamp())
+                })
+                .unwrap_or(0),
         })
     }
 
@@ -678,11 +690,15 @@ impl RuntimePort for DockerRuntimeAdapter {
             return Ok(());
         }
 
+        // If swarm is enabled, use overlay driver by default for new networks
+        let is_swarm = self.is_swarm_enabled().await.unwrap_or(false);
+        let driver = if is_swarm { "overlay" } else { "bridge" };
+
         let config = NetworkCreateRequest {
             name: name.to_string(),
             internal: Some(false),
             attachable: Some(true),
-            driver: Some("bridge".to_string()),
+            driver: Some(driver.to_string()),
             ..Default::default()
         };
 
@@ -933,6 +949,116 @@ impl RuntimePort for DockerRuntimeAdapter {
             manager: tokens.manager.unwrap_or_default(),
             worker: tokens.worker.unwrap_or_default(),
         })
+    }
+
+    async fn create_service(&self, config: ServiceConfig) -> Result<String> {
+        let mut labels = config.labels.clone();
+        labels.insert("labuh.managed".to_string(), "true".to_string());
+
+        let container_spec = TaskSpecContainerSpec {
+            image: Some(config.image),
+            env: Some(config.env),
+            labels: Some(labels.clone()),
+            ..Default::default()
+        };
+
+        let resources = if config.cpu_limit.is_some() || config.memory_limit.is_some() {
+            Some(TaskSpecResources {
+                limits: Some(Limit {
+                    nano_cpus: config.cpu_limit.map(|c| (c * 1e9) as i64),
+                    memory_bytes: config.memory_limit,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+        } else {
+            None
+        };
+
+        let task_spec = TaskSpec {
+            container_spec: Some(container_spec),
+            resources,
+            networks: Some(
+                config
+                    .networks
+                    .iter()
+                    .map(|n| NetworkAttachmentConfig {
+                        target: Some(n.clone()),
+                        ..Default::default()
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        };
+
+        // Handle port mappings
+        let endpoint_spec = if !config.ports.is_empty() {
+            let ports = config
+                .ports
+                .iter()
+                .filter_map(|p| {
+                    let parts: Vec<&str> = p.split(':').collect();
+                    if parts.len() == 2 {
+                        let published = parts[0].parse::<i64>().ok();
+                        let target = parts[1].parse::<i64>().ok();
+                        Some(EndpointPortConfig {
+                            protocol: Some(bollard::models::EndpointPortConfigProtocolEnum::TCP),
+                            published_port: published,
+                            target_port: target,
+                            publish_mode: Some(
+                                bollard::models::EndpointPortConfigPublishModeEnum::INGRESS,
+                            ),
+                            ..Default::default()
+                        })
+                    } else if parts.len() == 1 {
+                        let target = parts[0].parse::<i64>().ok();
+                        Some(EndpointPortConfig {
+                            target_port: target,
+                            ..Default::default()
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            Some(EndpointSpec {
+                mode: Some(bollard::models::EndpointSpecModeEnum::VIP),
+                ports: Some(ports),
+            })
+        } else {
+            None
+        };
+
+        let spec = ServiceSpec {
+            name: Some(config.name),
+            labels: Some(labels),
+            task_template: Some(task_spec),
+            mode: Some(ServiceSpecMode {
+                replicated: Some(ServiceSpecModeReplicated {
+                    replicas: Some(config.replicas as i64),
+                }),
+                ..Default::default()
+            }),
+            endpoint_spec,
+            ..Default::default()
+        };
+
+        let response = self
+            .docker
+            .create_service(spec, None)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+
+        Ok(response.id.unwrap_or_default())
+    }
+
+    async fn remove_service(&self, id_or_name: &str) -> Result<()> {
+        self.docker
+            .delete_service(id_or_name)
+            .await
+            .map_err(|e| AppError::ContainerRuntime(e.to_string()))?;
+        Ok(())
     }
 
     async fn update_service_scale(&self, service_name: &str, replicas: u64) -> Result<()> {

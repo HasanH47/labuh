@@ -131,6 +131,9 @@ impl StackUsecase {
 
         self.repo.create(stack.clone()).await?;
 
+        // Sync config from YAML to DB
+        let _ = self.sync_compose_to_db(&id).await;
+
         self.build_stack_services(&stack, compose_content, None, None)
             .await?;
 
@@ -196,6 +199,9 @@ impl StackUsecase {
 
         self.repo.create(stack.clone()).await?;
 
+        // Sync config from YAML to DB
+        let _ = self.sync_compose_to_db(&id).await;
+
         // 5. Build services
         self.build_stack_services(&stack, &compose_content, Some(&target_dir), None)
             .await?;
@@ -236,6 +242,9 @@ impl StackUsecase {
         self.repo.update_compose(id, &compose_content).await?;
         self.repo.update_git_info(id, &commit_hash).await?;
 
+        // Sync config from YAML to DB
+        let _ = self.sync_compose_to_db(id).await;
+
         // 4. Redeploy
         self.redeploy_stack(id).await?;
 
@@ -250,6 +259,14 @@ impl StackUsecase {
         service_name: Option<&str>,
     ) -> Result<()> {
         let parsed = parse_compose(compose_content)?;
+        let is_swarm = self.runtime.is_swarm_enabled().await.unwrap_or(false);
+
+        // Ensure networks exist first
+        if is_swarm {
+            for net_name in &parsed.networks {
+                self.runtime.ensure_network(net_name).await?;
+            }
+        }
 
         for service in &parsed.services {
             if let Some(target) = service_name
@@ -336,18 +353,53 @@ impl StackUsecase {
             self.apply_resource_limits(&stack.id, &service.name, &mut config)
                 .await?;
 
-            // 3. Replace container (Stop and Remove old one if exists)
-            let containers = self.get_stack_containers(&stack.id).await?;
-            let prefix = format!("/{}-{}", stack.name, service.name);
-            for c in containers {
-                if c.names.iter().any(|n| n == &prefix) {
-                    let _ = self.runtime.stop_container(&c.id).await;
-                    let _ = self.runtime.remove_container(&c.id, true).await;
-                }
-            }
+            if is_swarm {
+                // === SWARM MODE: Create Service ===
+                let swarm_service_name = format!("{}_{}", stack.name, service.name);
 
-            // 4. Create new container
-            self.runtime.create_container(config).await?;
+                // Cleanup old service if exists
+                let _ = self.runtime.remove_service(&swarm_service_name).await;
+
+                // Extract replicas from compose or default to 1
+                let replicas = service
+                    .deploy
+                    .as_ref()
+                    .and_then(|d| d.replicas)
+                    .unwrap_or(1) as u64;
+
+                // Extract constraints
+                let constraints = service
+                    .deploy
+                    .as_ref()
+                    .map(|d| d.placement.constraints.clone())
+                    .unwrap_or_default();
+
+                let svc_config = crate::domain::runtime::ServiceConfig {
+                    name: swarm_service_name,
+                    image: config.image.clone(),
+                    networks: service.networks.clone(),
+                    env: config.env.clone().unwrap_or_default(),
+                    replicas,
+                    labels: config.labels.clone().unwrap_or_default(),
+                    ports: config.ports.clone().unwrap_or_default(),
+                    cpu_limit: config.cpu_limit,
+                    memory_limit: config.memory_limit,
+                    constraints,
+                };
+
+                self.runtime.create_service(svc_config).await?;
+            } else {
+                // === STANDALONE MODE: Create Container ===
+                let containers = self.get_stack_containers(&stack.id).await?;
+                let prefix = format!("/{}-{}", stack.name, service.name);
+                for c in containers {
+                    if c.names.iter().any(|n| n == &prefix) {
+                        let _ = self.runtime.stop_container(&c.id).await;
+                        let _ = self.runtime.remove_container(&c.id, true).await;
+                    }
+                }
+                self.runtime.create_container(config).await?;
+            }
         }
         Ok(())
     }
@@ -587,7 +639,54 @@ impl StackUsecase {
         let _stack = self.get_stack(id, user_id).await?;
         parse_compose(compose_content)?;
         self.repo.update_compose(id, compose_content).await?;
+
+        // Sync updated config to DB
+        self.sync_compose_to_db(id).await?;
+
         self.redeploy_stack(id).await?;
+        Ok(())
+    }
+
+    pub async fn sync_compose_to_db(&self, stack_id: &str) -> Result<()> {
+        let stack = self.repo.find_by_id_internal(stack_id).await?;
+        let compose_content = stack.compose_content.ok_or_else(|| {
+            crate::error::AppError::BadRequest("Stack has no compose content".to_string())
+        })?;
+
+        let parsed = parse_compose(&compose_content)?;
+
+        for service in parsed.services {
+            // 1. Sync resource limits
+            if service.cpu_limit.is_some() || service.memory_limit.is_some() {
+                self.resource_repo
+                    .update_resource_limits(
+                        stack_id,
+                        &service.name,
+                        service.cpu_limit,
+                        service.memory_limit,
+                    )
+                    .await?;
+            }
+
+            // 2. Sync environment variables
+            if !service.env.is_empty() {
+                let vars: Vec<(String, String, bool)> = service
+                    .env
+                    .iter()
+                    .filter_map(|e| {
+                        e.split_once('=')
+                            .map(|(k, v)| (k.to_string(), v.to_string(), false))
+                    })
+                    .collect();
+
+                if !vars.is_empty() {
+                    self.environment_usecase
+                        .bulk_set(stack_id, &service.name, vars)
+                        .await?;
+                }
+            }
+        }
+
         Ok(())
     }
 
