@@ -197,6 +197,7 @@ export interface CreateStackFromGit {
   git_url: string;
   git_branch: string;
   compose_path: string;
+  env_vars?: Record<string, string>;
 }
 
 export type DomainProvider = "Custom" | "Cloudflare" | "CPanel";
@@ -224,6 +225,7 @@ export interface Domain {
   tunnel_id?: string;
   dns_record_id?: string;
   proxied: boolean;
+  show_branding: boolean;
   created_at: string;
 }
 
@@ -694,6 +696,20 @@ export const api = {
         return fetchApi<{ status: string }>("/domains/sync", {
           method: "POST",
         });
+      },
+
+      toggleBranding: async (
+        stackId: string,
+        domain: string,
+        showBranding: boolean,
+      ) => {
+        return fetchApi<{ status: string; show_branding: boolean }>(
+          `/stacks/${stackId}/domains/${encodeURIComponent(domain)}/branding`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ show_branding: showBranding }),
+          },
+        );
       },
     },
 

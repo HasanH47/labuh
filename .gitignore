@@ -10,3 +10,4 @@ labuh.db
 .env
 Caddyfile
 !deploy/**
+backend/data/**
