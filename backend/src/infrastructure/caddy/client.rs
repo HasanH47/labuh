@@ -184,6 +184,7 @@ impl CaddyClient {
     }
 
     /// Initialize a new route
+    #[allow(unused_variables)] // show_branding kept for API compatibility
     pub async fn add_route(&self, domain: &str, upstream: &str, show_branding: bool) -> Result<()> {
         // Ensure srv0 structure exists first
         self.ensure_srv0().await?;
@@ -191,51 +192,14 @@ impl CaddyClient {
         // Remove existing route for this domain if it exists to prevent duplicates
         let _ = self.remove_route(domain).await;
 
-        // Build handlers - always start with reverse_proxy
-        let mut handlers: Vec<serde_json::Value> = vec![];
-
-        if show_branding {
-            // Badge HTML to inject before </body>
-            let badge_html = r#"<div style="position:fixed;bottom:10px;right:10px;background:#1a1a2e;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;font-family:sans-serif;z-index:99999;opacity:0.9;box-shadow:0 2px 8px rgba(0,0,0,0.3);">⚡ Deployed with <a href="https://labuh.dev" target="_blank" style="color:#6366f1;text-decoration:none;font-weight:bold;">Labuh</a></div></body>"#;
-
-            // Use subroute with reverse_proxy + replace_response
-            handlers.push(serde_json::json!({
-                "handler": "subroute",
-                "routes": [{
-                    "handle": [
-                        {
-                            "handler": "reverse_proxy",
-                            "upstreams": [{ "dial": upstream }],
-                            "handle_response": [{
-                                "routes": [{
-                                    "match": [{
-                                        "header": {
-                                            "Content-Type": ["*text/html*"]
-                                        }
-                                    }],
-                                    "handle": [{
-                                        "handler": "rewrite",
-                                        "path_regexp": [{
-                                            "find": "</body>",
-                                            "replace": badge_html
-                                        }]
-                                    }]
-                                }]
-                            }]
-                        }
-                    ]
-                }]
-            }));
-        } else {
-            handlers.push(serde_json::json!({
-                "handler": "reverse_proxy",
-                "upstreams": [{ "dial": upstream }]
-            }));
-        }
-
+        // Simple reverse_proxy handler
+        // Note: Badge injection disabled - requires custom Caddy build with replace-response module
         let route_config = serde_json::json!({
             "match": [{ "host": [domain] }],
-            "handle": handlers
+            "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{ "dial": upstream }]
+            }]
         });
 
         // Insert domain route at the BEGINNING (index 0) so it takes priority
@@ -255,12 +219,7 @@ impl CaddyClient {
             )));
         }
 
-        tracing::info!(
-            "Added route: {} -> {} (branding: {})",
-            domain,
-            upstream,
-            show_branding
-        );
+        tracing::info!("Added route: {} -> {}", domain, upstream);
         Ok(())
     }
 
