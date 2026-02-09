@@ -57,6 +57,7 @@ async fn create_stack(
             &request.compose_content,
             &current_user.id,
             &request.team_id,
+            request.env_vars,
         )
         .await?;
     Ok(Json(stack.into()))

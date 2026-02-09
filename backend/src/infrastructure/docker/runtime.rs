@@ -79,7 +79,9 @@ impl RuntimePort for DockerRuntimeAdapter {
     }
 
     async fn create_container(&self, config: ContainerConfig) -> Result<String> {
-        use bollard::models::{ContainerCreateBody, HostConfig, PortBinding};
+        use bollard::models::{
+            ContainerCreateBody, EndpointSettings, HostConfig, NetworkingConfig, PortBinding,
+        };
 
         // Build exposed ports and port bindings
         let mut exposed_ports: Vec<String> = Vec::new();
@@ -150,10 +152,23 @@ impl RuntimePort for DockerRuntimeAdapter {
             binds,
             memory: config.memory_limit,
             nano_cpus: config.cpu_limit.map(|c| (c * 1e9) as i64),
-            network_mode: config.network_mode,
+            network_mode: config.network_mode.clone(),
             extra_hosts: config.extra_hosts,
             restart_policy,
             ..Default::default()
+        };
+
+        // Build networking_config for multi-network support
+        let networking_config = if let Some(networks) = &config.networks {
+            let mut endpoints_config: HashMap<String, EndpointSettings> = HashMap::new();
+            for net in networks {
+                endpoints_config.insert(net.clone(), EndpointSettings::default());
+            }
+            Some(NetworkingConfig {
+                endpoints_config: Some(endpoints_config),
+            })
+        } else {
+            None
         };
 
         let bollard_config = ContainerCreateBody {
@@ -167,6 +182,7 @@ impl RuntimePort for DockerRuntimeAdapter {
             },
             host_config: Some(host_config),
             labels: config.labels,
+            networking_config,
             ..Default::default()
         };
 

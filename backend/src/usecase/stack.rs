@@ -129,6 +129,7 @@ impl StackUsecase {
         compose_content: &str,
         user_id: &str,
         team_id: &str,
+        env_vars: Option<std::collections::HashMap<String, String>>,
     ) -> Result<Stack> {
         self.verify_permission(team_id, user_id, TeamRole::Developer)
             .await?;
@@ -157,6 +158,13 @@ impl StackUsecase {
         };
 
         self.repo.create(stack.clone()).await?;
+
+        // Save user-provided environment variables
+        if let Some(vars) = env_vars {
+            let env_list: Vec<(String, String, bool)> =
+                vars.into_iter().map(|(k, v)| (k, v, false)).collect();
+            let _ = self.environment_usecase.bulk_set(&id, "", env_list).await;
+        }
 
         // Sync config from YAML to DB
         let _ = self.sync_compose_to_db(&id).await;
@@ -296,11 +304,10 @@ impl StackUsecase {
         let parsed = parse_compose(compose_content)?;
         let is_swarm = self.runtime.is_swarm_enabled().await.unwrap_or(false);
 
-        // Ensure networks exist first
-        if is_swarm {
-            for net_name in &parsed.networks {
-                self.runtime.ensure_network(net_name).await?;
-            }
+        // Ensure networks exist first (both Swarm and Standalone)
+        self.runtime.ensure_network("labuh-network").await?;
+        for net_name in &parsed.networks {
+            self.runtime.ensure_network(net_name).await?;
         }
 
         for service in &parsed.services {
@@ -1082,7 +1089,13 @@ impl StackUsecase {
     ) -> Result<Stack> {
         // 1. Create the stack
         let stack = self
-            .create_stack(&backup.name, &backup.compose_content, user_id, team_id)
+            .create_stack(
+                &backup.name,
+                &backup.compose_content,
+                user_id,
+                team_id,
+                None,
+            )
             .await?;
 
         // 2. Restore env vars

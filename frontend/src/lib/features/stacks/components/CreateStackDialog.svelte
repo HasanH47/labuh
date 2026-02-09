@@ -79,6 +79,17 @@ services:
               class="font-mono text-sm"
             />
           </div>
+          <div class="space-y-2">
+            <Label for="envContentManual">Environment Variables <span class="text-muted-foreground text-xs font-normal">(optional)</span></Label>
+            <Textarea
+              id="envContentManual"
+              placeholder={"# Paste your .env file content here\nDB_HOST=localhost\nDB_PORT=3306\nAPP_KEY=your-secret-key"}
+              bind:value={ctrl.newStack.envContent}
+              rows={5}
+              class="font-mono text-sm"
+            />
+            <p class="text-xs text-muted-foreground">Paste your <code>.env</code> file content. Lines starting with # are ignored.</p>
+          </div>
         {:else}
           <div class="space-y-4">
             <div class="space-y-2">

@@ -26,6 +26,7 @@ pub struct CreateStack {
     pub name: String,
     pub team_id: String,
     pub compose_content: String,
+    pub env_vars: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize)]

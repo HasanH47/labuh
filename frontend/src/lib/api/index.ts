@@ -189,6 +189,7 @@ export interface CreateStack {
   name: string;
   team_id: string;
   compose_content: string;
+  env_vars?: Record<string, string>;
 }
 
 export interface CreateStackFromGit {

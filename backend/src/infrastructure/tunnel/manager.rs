@@ -70,6 +70,7 @@ impl TunnelManager {
             cpu_limit: None,
             memory_limit: None,
             network_mode: Some(LABUH_NETWORK.to_string()),
+            networks: None,
             extra_hosts: None,
             restart_policy: Some("always".to_string()),
         };

@@ -388,6 +388,13 @@ pub fn service_to_container_request(
         )
     };
 
+    // Build networks list: include service-defined networks + labuh-network
+    let mut all_networks = service.networks.clone();
+    if !all_networks.contains(&"labuh-network".to_string()) {
+        all_networks.push("labuh-network".to_string());
+    }
+
+    // Use labuh-network as primary network_mode; extra networks added via networks field
     ContainerConfig {
         name: format!("{}-{}", stack_name, service.name),
         image: service.image.clone(),
@@ -403,6 +410,11 @@ pub fn service_to_container_request(
         memory_limit: service.memory_limit,
         cmd: None,
         network_mode: Some("labuh-network".to_string()),
+        networks: if all_networks.len() > 1 {
+            Some(all_networks)
+        } else {
+            None
+        },
         extra_hosts: None,
         restart_policy: Some("unless-stopped".to_string()),
     }

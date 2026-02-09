@@ -22,6 +22,12 @@
 			if (result.data) {
 				ctrl.newStack.name = result.data.id;
 				ctrl.newStack.composeContent = result.data.compose_content;
+				// Pre-fill env vars from template default_env
+				if (result.data.default_env && result.data.default_env.length > 0) {
+					ctrl.newStack.envContent = result.data.default_env
+						.map((e: { key: string; value: string }) => `${e.key}=${e.value}`)
+						.join('\n');
+				}
 				ctrl.showCreateDialog = true;
 
 				// Clear the URL parameter without reloading
