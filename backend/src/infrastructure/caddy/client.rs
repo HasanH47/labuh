@@ -5,7 +5,7 @@ use crate::domain::runtime::{ContainerConfig, RuntimePort};
 use crate::error::{AppError, Result};
 
 /// Version tag for Caddy container - increment to force re-creation
-const CADDY_CONTAINER_VERSION: &str = "v3";
+const CADDY_CONTAINER_VERSION: &str = "v4";
 const LABUH_NETWORK: &str = "labuh-network";
 
 /// Caddy Admin API client for dynamic configuration
@@ -85,10 +85,15 @@ impl CaddyClient {
                 let _ = runtime.remove_container(&c.id, true).await;
                 // Fall through to create new container
             } else if c.state == "running" {
+                // Ensure HTTPS is configured even for existing containers
+                self.ensure_srv0().await?;
                 return Ok(());
             } else {
                 tracing::info!("Starting existing Caddy container...");
                 runtime.start_container(&c.id).await?;
+                // Wait for Caddy to be ready
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                self.ensure_srv0().await?;
                 return Ok(());
             }
         }
@@ -167,6 +172,13 @@ impl CaddyClient {
 
         tracing::info!("Starting Caddy container...");
         runtime.start_container(&id).await?;
+
+        // Wait for Caddy to be ready before initializing srv0
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Initialize HTTPS server
+        tracing::info!("Initializing Caddy HTTPS server...");
+        self.ensure_srv0().await?;
 
         Ok(())
     }
