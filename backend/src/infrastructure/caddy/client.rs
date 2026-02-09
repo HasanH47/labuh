@@ -141,6 +141,7 @@ impl CaddyClient {
             cpu_limit: None,
             memory_limit: None,
             network_mode: None,
+            networks: None,
             extra_hosts: None,
             restart_policy: Some("always".to_string()),
         };

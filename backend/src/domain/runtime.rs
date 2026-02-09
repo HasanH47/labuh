@@ -119,6 +119,7 @@ pub struct ContainerConfig {
     pub cpu_limit: Option<f64>,
     pub memory_limit: Option<i64>,
     pub network_mode: Option<String>,
+    pub networks: Option<Vec<String>>, // Additional networks to connect the container to
     pub extra_hosts: Option<Vec<String>>,
     pub restart_policy: Option<String>, // "always", "unless-stopped", "no", "on-failure"
 }
